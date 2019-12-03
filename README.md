@@ -1,4 +1,6 @@
-# Pypyrust, a Python-implemented Python to Rust compiler
+# PyPyRust
+
+_A Python-implemented Python to Rust compiler_
 
 Python is the world's most popular language, in part because it is so easy to write. Rust
 is arguably the world's best general-purpose language: it is fast, with concise syntax
