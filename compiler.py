@@ -13,6 +13,11 @@ ALLOWED_BINARY_OPERATORS = { "Add", "Mult", "Sub", "Div", "FloorDiv",
     "Mod", "LShift", "RShift", "BitOr", "BitXor", "BitAnd" }
 ALLOWED_COMPARISON_OPERATORS = { "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE" }
 
+REPLACE_CONSTANTS = {
+    True : "true",
+    False : "false",
+} 
+
 # Fortunately, the precedence of Python operators is the same as Rust,
 # except for ** (doesn't exist in Rust), is/in (don't exist in Rust)
 # "not", which is very highest precedence in Rust, but just above the
@@ -127,10 +132,18 @@ class TreeWalker(ast.NodeVisitor):
         
     def visit_Name(self, node):
         print(f"{node.id}", end='')
-        self.generic_visit(node)
+
+    def visit_NameConstant(self, node):
+        val = node.value
+        if val in REPLACE_CONSTANTS:
+            val = REPLACE_CONSTANTS[node.value]
+        print(f"{val}", end='')
 
     def visit_Str(self, node):
         print(f'"{node.s}"', end='')
+
+    def visit_Num(self, node):
+        print(f"{node.n}", end='')
 
     def visit_BinOp(self, node):
         # some binary operators such as '+' translate
@@ -280,6 +293,48 @@ class TreeWalker(ast.NodeVisitor):
     def visit_GtE(self, node):
         print(" >= ", end='')
 
+    def visit_IfExp(self, node):
+        print("if ", end='')
+        self.visit(node.test)
+        print(" { ", end='')
+        self.visit(node.body)
+        print(" } else { ", end='')
+        self.visit(node.orelse)
+        print(" }", end='')
+
+    def visit_If(self, node):
+        print(f"{self.pretty()}if ", end='')
+        self.visit(node.test)
+        print(" {")
+        self.add_pretty(1)
+        for line in node.body:
+            self.visit(line)
+        self.add_pretty(-1)
+        if node.orelse:
+            print(f"{self.pretty()}{CLOSE_BRACE} else {OPEN_BRACE}")
+            self.add_pretty(1)
+            for line in node.orelse:
+                self.visit(line)
+            self.add_pretty(-1)
+        print(f"{self.pretty()}{CLOSE_BRACE}")
+
+    def visit_While(self, node):
+        print(f"{self.pretty()}while ", end='')
+        self.visit(node.test)
+        print(" {")
+        self.add_pretty(1)
+        for line in node.body:
+            self.visit(line)
+        self.add_pretty(-1)
+        assert(len(node.orelse) == 0)
+        print(f"{self.pretty()}{CLOSE_BRACE}")
+    
+    def visit_Break(self, node):
+        print(f"{self.pretty()}break;")
+
+    def visit_Continue(self, node):
+        print(f"{self.pretty()}continue;")
+
 def compile_to_rust(source, filename: str) -> bool:
     """
     Compiles a Python source file, generating Rust source in
@@ -311,3 +366,4 @@ def test_compiler(filename: str):
 if __name__ == "__main__":
     test_compiler("tests/hello_world.py")
     test_compiler("tests/add_mult.py")
+    test_compiler("tests/flow_of_control.py")
