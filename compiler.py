@@ -335,6 +335,40 @@ class TreeWalker(ast.NodeVisitor):
     def visit_Continue(self, node):
         print(f"{self.pretty()}continue;")
 
+    def visit_Assign(self, node):
+        """
+        Variable assignment statement, such as x = y = 42
+
+        Note that Rust does not handle multiple assignments on one
+        line, so we write a line for each one.
+        """
+        first = True
+        for target in node.targets:
+            print(f"{self.pretty()}let ", end='')
+            self.visit(target)
+            print(" = ", end='')
+            if first:
+                self.visit(node.value)
+                first = False
+            else:
+                # only evaluate expression once
+                self.visit(target)
+            print(";")
+
+    def visit_AnnAssign(self, node):
+        """
+        Hinted variable assignment statement, such as x: int = 42
+
+        We do not yet handle non-simple assignments such as
+        (x): int = 42
+        """
+        print(f"{self.pretty()}let ", end='')
+        self.visit(node.target)
+        typed = type_from_annotation(node.annotation, node.target)
+        print(f": {typed} = ", end='')
+        self.visit(node.value)
+        print(";")
+
 def compile_to_rust(source, filename: str) -> bool:
     """
     Compiles a Python source file, generating Rust source in
@@ -367,3 +401,4 @@ if __name__ == "__main__":
     test_compiler("tests/hello_world.py")
     test_compiler("tests/add_mult.py")
     test_compiler("tests/flow_of_control.py")
+    test_compiler("tests/variables.py")
