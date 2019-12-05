@@ -18,4 +18,10 @@ def aug_assign(a: int, b: int):
     c /= (a + b)
     c //= a
     c *= b
-    
+
+def repeated_assign(a: str, b: str) -> str:
+    c = a
+    c = b
+    if b == a:
+        c = "equal"
+    return c

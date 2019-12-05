@@ -61,6 +61,7 @@ class TreeWalker(ast.NodeVisitor):
         self.next_separator = ""
         self.precedence = 0
         self.in_aug_assign = False
+        self.variables = set()
 
     def pretty(self):
         return '    ' * self.indent
@@ -92,6 +93,10 @@ class TreeWalker(ast.NodeVisitor):
         # function name
         print(f"{self.pretty()}fn {node.name}(", end='')
 
+        # start with a clean set of variables 
+        # (do we need to worry about nested functions?)
+        self.variables = set()
+
         # function arg list
         self.next_separator = ""
         self.generic_visit(node.args)
@@ -111,11 +116,17 @@ class TreeWalker(ast.NodeVisitor):
         print(f"{self.pretty()}{CLOSE_BRACE}")
         print()
 
+        # clean the set of variables. The names do not leak past here
+        self.variables = set()
+
     def visit_arg(self, node):
         typed = type_from_annotation(node.annotation, node.arg)
-        print(f"{self.next_separator}{node.arg} : {typed}", end='')
+        # We currently make all args mutable, as we do not know whether they
+        # may be modified later. TODO add a first pass to find whether this is
+        # needed.
+        print(f"{self.next_separator}mut {node.arg}: {typed}", end='')
+        self.variables.add(node.arg)
         self.next_separator = ", "
-        # self.generic_visit(node)
 
     def visit_Expr(self, node):
         print(f"{self.pretty()}", end='')
@@ -372,7 +383,15 @@ class TreeWalker(ast.NodeVisitor):
         """
         first = True
         for target in node.targets:
-            print(f"{self.pretty()}let mut ", end='')
+            # treatment depends on whether it is the first time we
+            # have seen this variable. (Do not use shadowing.)
+            name = target.id
+            if name in self.variables:
+                print(f"{self.pretty()}", end='')
+            else:
+                print(f"{self.pretty()}let mut ", end='')
+                self.variables.add(name)
+
             self.visit(target)
             print(" = ", end='')
             if first:
@@ -390,7 +409,15 @@ class TreeWalker(ast.NodeVisitor):
         We do not yet handle non-simple assignments such as
         (x): int = 42
         """
-        print(f"{self.pretty()}let mut ", end='')
+        # treatment depends on whether it is the first time we
+        # have seen this variable. (Do not use shadowing.)
+        name = node.target.id
+        if name in self.variables:
+            print(f"{self.pretty()}", end='')
+        else:
+            print(f"{self.pretty()}let mut ", end='')
+            self.variables.add(name)
+
         self.visit(node.target)
         typed = type_from_annotation(node.annotation, node.target)
         print(f": {typed} = ", end='')
