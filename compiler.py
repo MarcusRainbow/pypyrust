@@ -60,12 +60,19 @@ class TreeWalker(ast.NodeVisitor):
         self.indent = 0
         self.next_separator = ""
         self.precedence = 0
+        self.in_aug_assign = False
 
     def pretty(self):
         return '    ' * self.indent
     
     def add_pretty(self, increment: int):
         self.indent += increment
+
+    def print_operator(self, op: str):
+        if self.in_aug_assign:
+            print(f" {op}= ", end='')
+        else:
+            print(f" {op} ", end='')
 
     def parens_if_needed(self, op: str, visit):
         # use precedence * 2 so we can add one to control less than or equal
@@ -172,43 +179,43 @@ class TreeWalker(ast.NodeVisitor):
         self.precedence -= 1
 
     def visit_Add(self, node):
-        print(" + ", end='')
+        self.print_operator("+")
     
     def visit_Mult(self, node):
-        print(" * ", end='')
+        self.print_operator("*")
 
     def visit_Sub(self, node):
-        print(" - ", end='')
+        self.print_operator("-")
     
     def visit_Div(self, node):
         # print("warning: floating point division", file=sys.stderr)
-        print(" / ", end='')
+        self.print_operator("/")
 
     def visit_FloorDiv(self, node):
         # print("warning: integer division", file=sys.stderr)
-        print(" / ", end='')
+        self.print_operator("/")
 
     def visit_Mod(self, node):
         # print("warning: Python mod operator is different from Rust")
-        print(" % ", end='')
+        self.print_operator("%")
 
     def visit_Pow(self, node):
         print("pow", end='')
 
     def visit_LShift(self, node):
-        print(" << ", end='')
+        self.print_operator("<<")
 
     def visit_RShift(self, node):
-        print(" >> ", end='')    
+        self.print_operator(">>")
 
     def visit_BitOr(self, node):
-        print(" | ", end='')
+        self.print_operator("|")
 
     def visit_BitXor(self, node):
-        print(" ^ ", end='')
+        self.print_operator("^")
 
     def visit_BitAnd(self, node):
-        print(" & ", end='')
+        self.print_operator("&")
     
     def visit_UnaryOp(self, node):
         op = node.op.__class__.__name__
@@ -329,6 +336,19 @@ class TreeWalker(ast.NodeVisitor):
         assert(len(node.orelse) == 0)
         print(f"{self.pretty()}{CLOSE_BRACE}")
     
+    def visit_For(self, node):
+        print(f"{self.pretty()}for ", end='')
+        self.visit(node.target)
+        print(" in ", end='')
+        self.visit(node.iter)
+        print(" {")
+        self.add_pretty(1)
+        for line in node.body:
+            self.visit(line)
+        self.add_pretty(-1)
+        assert(len(node.orelse) == 0)
+        print(f"{self.pretty()}{CLOSE_BRACE}")
+    
     def visit_Break(self, node):
         print(f"{self.pretty()}break;")
 
@@ -341,10 +361,18 @@ class TreeWalker(ast.NodeVisitor):
 
         Note that Rust does not handle multiple assignments on one
         line, so we write a line for each one.
+
+        Currently we generate a mutable Rust variable, because we
+        do not know whether it will be later assigned to. We could
+        do a first pass with a visitor to determine the lifecycle
+        of variables, which would allow us to tighten up the
+        assignments.
+
+        We always assign mutable, see visit_Assign for reasons.
         """
         first = True
         for target in node.targets:
-            print(f"{self.pretty()}let ", end='')
+            print(f"{self.pretty()}let mut ", end='')
             self.visit(target)
             print(" = ", end='')
             if first:
@@ -362,10 +390,19 @@ class TreeWalker(ast.NodeVisitor):
         We do not yet handle non-simple assignments such as
         (x): int = 42
         """
-        print(f"{self.pretty()}let ", end='')
+        print(f"{self.pretty()}let mut ", end='')
         self.visit(node.target)
         typed = type_from_annotation(node.annotation, node.target)
         print(f": {typed} = ", end='')
+        self.visit(node.value)
+        print(";")
+
+    def visit_AugAssign(self, node):
+        print(self.pretty(), end='')
+        self.visit(node.target)
+        self.in_aug_assign = True
+        self.visit(node.op)
+        self.in_aug_assign = False
         self.visit(node.value)
         print(";")
 

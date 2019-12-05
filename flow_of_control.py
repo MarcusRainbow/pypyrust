@@ -27,3 +27,9 @@ def while_break_continue(a: bool, b: bool):
         elif b:
             continue
         print("hello")
+
+def for_loop(a: int, b: int) -> int:
+    total = 0
+    for i in range(a, b):
+        total += i
+    return total
