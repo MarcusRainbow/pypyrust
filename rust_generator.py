@@ -6,6 +6,7 @@ import ast
 import sys
 from enum import Enum
 import filecmp
+import os
 
 OPEN_BRACE = '{'
 CLOSE_BRACE = '}'
@@ -447,13 +448,19 @@ def test_compiler(filename: str):
     input_file.close()
 
     output_file = open(output_filename, 'w')
+    old_stdout = sys.stdout
     sys.stdout = output_file
     tree = ast.parse(source, filename, 'exec')
     RustGenerator().visit(tree)
     output_file.close()
+    sys.stdout = old_stdout
 
     ok = filecmp.cmp(baseline_filename, output_filename, shallow=False)
-    assert(ok)
+    if ok:
+        print(f"test {filename} succeeded")
+        os.remove(output_filename)
+    else:
+        print(f"test {filename} failed. Output file {output_filename} left in place.")
 
 if __name__ == "__main__":
     test_compiler("hello_world")
