@@ -7,16 +7,10 @@ import sys
 from typing import Dict, Set, List, Tuple
 
 TYPE_COERCIONS = {
-    ("bool", "i32"): "i32",
-    ("i32", "bool"): "i32",
     ("bool", "i64"): "i64",
     ("i64", "bool"): "i64",
     ("bool", "f64"): "f64",
     ("f64", "bool"): "f64",
-    ("i32", "i64"): "i64",
-    ("i64", "i32"): "i64",
-    ("i32", "f64"): "f64",
-    ("f64", "i32"): "f64",
     ("i64", "f64"): "f64",
     ("f64", "i64"): "f64",
 }
@@ -25,7 +19,6 @@ UNKNOWN_TYPE = "Unknown"
 
 DEFAULT_VALUES = {
     "bool": "false",
-    "i32": "0",
     "i64": "0",
     "f64": "0.0",
     "str": '""',
@@ -37,7 +30,7 @@ def type_from_annotation(annotation: str, arg: str) -> str:
         return 'None'
     id = annotation.id
     if id == 'int':
-        return 'i32'
+        return 'i64'
     elif id == 'bool':
         return 'bool'
     elif id == 'str':
@@ -177,12 +170,10 @@ class VariableAnalyser(ast.NodeVisitor):
 
     def visit_Num(self, node):
         python_type = type(node.n).__name__
-        if python_type == 'int':
-            self.set_type("i32")
+        if python_type == 'int' or python_type == 'long':
+            self.set_type("i64")
         elif python_type == 'float':
             self.set_type("f64")
-        elif python_type == 'long':
-            self.set_type("i64")
         else:
             raise Exception(f"Unsupported numeric type: {python_type}")
 

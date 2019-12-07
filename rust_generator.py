@@ -11,8 +11,9 @@ from var_analyser import VariableAnalyser, type_from_annotation
 
 OPEN_BRACE = '{'
 CLOSE_BRACE = '}'
-ALLOWED_BINARY_OPERATORS = { "Add", "Mult", "Sub", "Div", "FloorDiv",
-    "Mod", "LShift", "RShift", "BitOr", "BitXor", "BitAnd" }
+# ALLOWED_BINARY_OPERATORS = { "Add", "Mult", "Sub", "Div", "FloorDiv",
+#     "Mod", "LShift", "RShift", "BitOr", "BitXor", "BitAnd" }
+
 ALLOWED_COMPARISON_OPERATORS = { "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE" }
 
 REPLACE_CONSTANTS = {
@@ -38,6 +39,10 @@ OPERATOR_PRECEDENCE = {
     "And": 2,
     "Or": 1,
 }
+
+# One bigger than any actual precedence. Use this to force parentheses
+MAX_PRECEDENCE = 13
+
 class RustGenerator(ast.NodeVisitor):
     """
     Visitor of the Python AST which generates Rust code, streaming
@@ -138,15 +143,54 @@ class RustGenerator(ast.NodeVisitor):
         print(";")
 
     def visit_Call(self, node):
-        self.visit(node.func)
-        print("(", end='')
-        sep = ""
-        for a in node.args:
-            print(sep, end='')
-            self.visit(a)
-            sep = ", "
-        print(")", end='')
+        if node.func.id == "print":
+            self.visit_Print(node)
+        else:
+            self.visit(node.func)
+            print("(", end='')
+            sep = ""
+            for a in node.args:
+                print(sep, end='')
+                self.visit(a)
+                sep = ", "
+            print(")", end='')
+
+    def visit_Print(self, node):
+        """
+        Not part of the standard visitor pattern, but internally
+        special-cased, because Rust print is quite different from
+        Python.
+        """
+        # detect end= override
+        endline = None
+        sep = None
+        for k in node.keywords:
+            if k.arg == "end":
+                endline = k.value
+            elif k.arg == "sep":
+                sep = k.value
         
+        n = len(node.args)
+        if n == 0:
+            if not endline:
+                print("println!();")
+        else:
+            for i, arg in enumerate(node.args):
+                if i != 0:
+                    print("print!(", end='')
+                    if sep:
+                        self.visit(sep)
+                    else:
+                        print('" "', end='')
+                    print(");")
+                if i == n - 1 and not endline:
+                    print("println!(", end='')
+                else:
+                    print("print!(", end='')
+                self.visit(arg)
+                print(");")
+            # for now, we assume that the override sets end to ''
+
     def visit_Name(self, node):
         print(f"{node.id}", end='')
 
@@ -164,22 +208,13 @@ class RustGenerator(ast.NodeVisitor):
 
     def visit_BinOp(self, node):
         # some binary operators such as '+' translate
-        # into binary operators in Rust
+        # into binary operators in Rust. However, pow needs
+        # special handling.
         op = node.op.__class__.__name__
-        if op in ALLOWED_BINARY_OPERATORS:
-            self.parens_if_needed(op, lambda: self.do_visit_BinOp(node))
+        if op == "Pow":
+            self.visit_PowOp(node)
         else:
-            old_prec = self.precedence
-            self.precedence = 0     # these parentheses reset everything
-
-            self.visit(node.op)
-            print("(", end='')
-            self.visit(node.left)
-            print(", ", end='')
-            self.visit(node.right)
-            print(")", end='')
-
-            self.precedence = old_prec
+            self.parens_if_needed(op, lambda: self.do_visit_BinOp(node))
     
     def do_visit_BinOp(self, node):
         self.visit(node.left)
@@ -187,6 +222,27 @@ class RustGenerator(ast.NodeVisitor):
         self.precedence += 1    # left to right associative
         self.visit(node.right)
         self.precedence -= 1
+
+    def visit_PowOp(self, node):
+        """
+        Not a standard visitor function, but one we invoke
+        to handle the Pow operator "**"
+        """
+        # ensure that any contained expression gets wrapped in
+        # parentheses
+        old_prec = self.precedence
+        self.precedence = MAX_PRECEDENCE * 2
+
+        # TODO decide between pow, powf and powi on the basis of type
+        # For now, assume the arguments are integer (i64). Note that
+        # Rust requires the rhs to be unsigned.
+        self.visit(node.left)
+        print(".pow((", end='')
+        self.precedence = 0     # already have parentheses
+        self.visit(node.right)
+        print(") as u32)", end='')
+
+        self.precedence = old_prec
 
     def visit_Add(self, node):
         self.print_operator("+")
@@ -209,8 +265,8 @@ class RustGenerator(ast.NodeVisitor):
         # print("warning: Python mod operator is different from Rust")
         self.print_operator("%")
 
-    def visit_Pow(self, node):
-        print("pow", end='')
+    # def visit_Pow(self, node):
+    #     print("pow", end='')
 
     def visit_LShift(self, node):
         self.print_operator("<<")
@@ -232,7 +288,11 @@ class RustGenerator(ast.NodeVisitor):
         self.parens_if_needed(op, lambda: self.generic_visit(node))
 
     def visit_UAdd(self, node):
-        print("+", end='')
+        """
+        There is no unary addition operator in Rust. Just omit it
+        as it is a no-op
+        """
+        pass
 
     def visit_USub(self, node):
         print("-", end='')
@@ -241,7 +301,11 @@ class RustGenerator(ast.NodeVisitor):
         print("!", end='')
 
     def visit_Invert(self, node):
-        print("~", end='')
+        """
+        In Python the bitwise inversion operator "~" is distinct
+        from boolean negation. This is not the case in Rust.
+        """
+        print("!", end='')
 
     def visit_BoolOp(self, node):
         op = node.op.__class__.__name__
@@ -388,10 +452,11 @@ class RustGenerator(ast.NodeVisitor):
             print(" = ", end='')
             if first:
                 self.visit(node.value)
+                first_name = name
                 first = False
             else:
                 # only evaluate expression once
-                self.visit(target)
+                print(f" = {first_name}", end='')
             print(";")
 
     def visit_AnnAssign(self, node):

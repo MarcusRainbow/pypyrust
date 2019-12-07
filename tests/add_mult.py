@@ -22,7 +22,7 @@ def boolean(a: bool, b: bool, c: bool) -> bool:
 def compare(a: int, b: int, c: int) -> bool:
     return (a == b) or (b != c) or (a > b) or (c < a) or (a <= b) or (c >= b)
 
-def precedence(a: int, b: int, c: int) -> bool:
+def precedence(a: int, b: int, c: int) -> int:
     return a + (b - c) + (b + c) * a
 
 def multi_compare(a: int, b: int, c: int) -> bool:

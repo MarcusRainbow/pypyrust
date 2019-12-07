@@ -1,23 +1,23 @@
-fn assignment(a: bool, b: str, c: i32, d: i32) -> i32 {
+fn assignment(a: bool, b: str, c: i64, d: i64) -> i64 {
     let e = a;
     let f = b;
     let g = c;
     let h = c + d;
     let j = c + d + g + h;
-    let k = k;
-    let l = l;
+    let k =  = j;
+    let l =  = j;
     return if a { e + f + j + k + l } else { 0 };
 }
 
-fn annotated_assignment(a: bool, b: str, c: i32, d: i32) -> i32 {
-    let e: i32 = 3;
+fn annotated_assignment(a: bool, b: str, c: i64, d: i64) -> i64 {
+    let e: i64 = 3;
     let f: bool = a;
     let g: str = c;
-    let h: i32 = c + d;
+    let h: i64 = c + d;
     return if a && f && g == "hello" { e + h } else { 0 };
 }
 
-fn aug_assign(a: i32, b: i32) -> i32 {
+fn aug_assign(a: i64, b: i64) -> i64 {
     let mut c = 0;
     c += a;
     c -= b;
