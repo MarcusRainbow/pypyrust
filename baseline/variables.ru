@@ -1,21 +1,21 @@
-fn assignment(mut a: bool, mut b: str, mut c: u32, mut d: u32) {
-    let mut e = a;
-    let mut f = b;
-    let mut g = c;
-    let mut h = c + d;
-    let mut j = c + d + g + h;
-    let mut k = k;
-    let mut l = l;
+fn assignment(a: bool, b: str, c: i32, d: i32) {
+    let e = a;
+    let f = b;
+    let g = c;
+    let h = c + d;
+    let j = c + d + g + h;
+    let k = k;
+    let l = l;
 }
 
-fn annotated_assignment(mut a: bool, mut b: str, mut c: u32, mut d: u32) {
-    let mut e: u32 = 3;
-    let mut f: bool = a;
-    let mut g: str = c;
-    let mut h: u32 = c + d;
+fn annotated_assignment(a: bool, b: str, c: i32, d: i32) {
+    let e: i32 = 3;
+    let f: bool = a;
+    let g: str = c;
+    let h: i32 = c + d;
 }
 
-fn aug_assign(mut a: u32, mut b: u32) {
+fn aug_assign(a: i32, b: i32) {
     let mut c = 0;
     c += a;
     c -= b;
@@ -24,12 +24,22 @@ fn aug_assign(mut a: u32, mut b: u32) {
     c *= b;
 }
 
-fn repeated_assign(mut a: str, mut b: str) -> str {
+fn repeated_assign(a: str, b: str) -> str {
     let mut c = a;
     c = b;
     if b == a {
         c = "equal";
     }
     return c;
+}
+
+fn pathological(a: bool, b: str, c: str) -> str {
+    let mut d: str = "";
+    if a {
+        d = b;
+    } else {
+        d = c;
+    }
+    return d;
 }
 

@@ -7,6 +7,7 @@ import sys
 from enum import Enum
 import filecmp
 import os
+from var_analyser import VariableAnalyser, type_from_annotation
 
 OPEN_BRACE = '{'
 CLOSE_BRACE = '}'
@@ -37,24 +38,6 @@ OPERATOR_PRECEDENCE = {
     "And": 2,
     "Or": 1,
 }
-
-def type_from_annotation(annotation: str, arg: str) -> str:
-    if annotation is None:
-        print("missing type annotation for argument '{arg}'", file=sys.stderr)
-        return 'None'
-    id = annotation.id
-    if id == 'int':
-        return 'u32'
-    elif id == 'bool':
-        return 'bool'
-    elif id == 'str':
-        return 'str'
-    elif id == 'num':
-        return 'f64'
-    else:
-        print("unrecognised type annotation for argument '{arg}': '{annotation}'", file=sys.stderr)
-        return annotation
-
 class RustGenerator(ast.NodeVisitor):
     """
     Visitor of the Python AST which generates Rust code, streaming
@@ -67,6 +50,7 @@ class RustGenerator(ast.NodeVisitor):
         self.precedence = 0
         self.in_aug_assign = False
         self.variables = set()
+        self.mutable_vars = set()
 
     def pretty(self):
         return '    ' * self.indent
@@ -95,12 +79,18 @@ class RustGenerator(ast.NodeVisitor):
             print(")", end='')
 
     def visit_FunctionDef(self, node):
+        # Analyse the variables in this function to see which need
+        # to be predeclared or marked as mutable
+        analyser = VariableAnalyser()
+        analyser.visit(node)
+
         # function name
         print(f"{self.pretty()}fn {node.name}(", end='')
 
         # start with a clean set of variables 
         # (do we need to worry about nested functions?)
-        self.variables = set()
+        self.variables.clear()
+        self.mutable_vars = analyser.get_mutable_vars()
 
         # function arg list
         self.next_separator = ""
@@ -113,8 +103,14 @@ class RustGenerator(ast.NodeVisitor):
         else:
             print(") {")        
 
-        # body of the function
         self.add_pretty(1)
+
+        # start with any variable declarations
+        for (var, typed, default) in analyser.get_predeclared_vars():
+            self.variables.add(var)
+            print(f"{self.pretty()}let mut {var}: {typed} = {default};")
+
+        # body of the function
         for expr in node.body:
             self.visit(expr)
         self.add_pretty(-1)
@@ -122,14 +118,12 @@ class RustGenerator(ast.NodeVisitor):
         print()
 
         # clean the set of variables. The names do not leak past here
-        self.variables = set()
+        self.variables.clear()
 
     def visit_arg(self, node):
         typed = type_from_annotation(node.annotation, node.arg)
-        # We currently make all args mutable, as we do not know whether they
-        # may be modified later. TODO add a first pass to find whether this is
-        # needed.
-        print(f"{self.next_separator}mut {node.arg}: {typed}", end='')
+        mutable = "mut " if node.arg in self.mutable_vars else ""
+        print(f"{self.next_separator}{mutable}{node.arg}: {typed}", end='')
         self.variables.add(node.arg)
         self.next_separator = ", "
 
@@ -377,14 +371,6 @@ class RustGenerator(ast.NodeVisitor):
 
         Note that Rust does not handle multiple assignments on one
         line, so we write a line for each one.
-
-        Currently we generate a mutable Rust variable, because we
-        do not know whether it will be later assigned to. We could
-        do a first pass with a visitor to determine the lifecycle
-        of variables, which would allow us to tighten up the
-        assignments.
-
-        We always assign mutable, see visit_Assign for reasons.
         """
         first = True
         for target in node.targets:
@@ -394,7 +380,8 @@ class RustGenerator(ast.NodeVisitor):
             if name in self.variables:
                 print(f"{self.pretty()}", end='')
             else:
-                print(f"{self.pretty()}let mut ", end='')
+                mutable = "mut " if name in self.mutable_vars else ""
+                print(f"{self.pretty()}let {mutable}", end='')
                 self.variables.add(name)
 
             self.visit(target)
@@ -420,7 +407,8 @@ class RustGenerator(ast.NodeVisitor):
         if name in self.variables:
             print(f"{self.pretty()}", end='')
         else:
-            print(f"{self.pretty()}let mut ", end='')
+            mutable = "mut " if name in self.mutable_vars else ""
+            print(f"{self.pretty()}let {mutable}", end='')
             self.variables.add(name)
 
         self.visit(node.target)

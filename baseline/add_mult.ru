@@ -1,44 +1,44 @@
-fn add_mult(mut a: u32, mut b: u32, mut c: u32) -> u32 {
+fn add_mult(a: i32, b: i32, c: i32) -> i32 {
     return a + b * c;
 }
 
-fn sub_div(mut a: u32, mut b: u32, mut c: u32) -> u32 {
+fn sub_div(a: i32, b: i32, c: i32) -> i32 {
     return a - b / c;
 }
 
-fn floor_div(mut a: u32, mut b: u32, mut c: u32) -> u32 {
+fn floor_div(a: i32, b: i32, c: i32) -> i32 {
     return a / (b % c);
 }
 
-fn bitwise(mut a: u32, mut b: u32, mut c: u32) -> u32 {
+fn bitwise(a: i32, b: i32, c: i32) -> i32 {
     return a << b & b >> c ^ (a | b);
 }
 
-fn powers(mut a: u32, mut b: u32, mut c: u32) -> u32 {
+fn powers(a: i32, b: i32, c: i32) -> i32 {
     return a * pow(a + b, pow(b + c, c + a));
 }
 
-fn unaries(mut a: u32, mut b: u32, mut c: u32) -> u32 {
+fn unaries(a: i32, b: i32, c: i32) -> i32 {
     return !(~a + +b + -c) + ~~a;
 }
 
-fn boolean(mut a: bool, mut b: bool, mut c: bool) -> bool {
+fn boolean(a: bool, b: bool, c: bool) -> bool {
     return a && b && c || !(a || b || c);
 }
 
-fn compare(mut a: u32, mut b: u32, mut c: u32) -> bool {
+fn compare(a: i32, b: i32, c: i32) -> bool {
     return a == b || b != c || a > b || c < a || a <= b || c >= b;
 }
 
-fn precedence(mut a: u32, mut b: u32, mut c: u32) -> bool {
+fn precedence(a: i32, b: i32, c: i32) -> bool {
     return a + (b - c) + (b + c) * a;
 }
 
-fn multi_compare(mut a: u32, mut b: u32, mut c: u32) -> bool {
+fn multi_compare(a: i32, b: i32, c: i32) -> bool {
     return (a < b) && (b < c) || (a >= b) && (b > c) || (a != b) && (b == c);
 }
 
-fn boolean_precedence(mut a: bool, mut b: bool, mut c: bool) -> bool {
+fn boolean_precedence(a: bool, b: bool, c: bool) -> bool {
     return a && b || c && b || a && c;
 }
 

@@ -1,4 +1,4 @@
-fn if_else(mut a: bool, mut c: u32) -> u32 {
+fn if_else(a: bool, c: i32) -> i32 {
     if a {
         return c;
     } else {
@@ -6,11 +6,11 @@ fn if_else(mut a: bool, mut c: u32) -> u32 {
     }
 }
 
-fn return_if_else(mut a: bool, mut c: u32) -> u32 {
+fn return_if_else(a: bool, c: i32) -> i32 {
     return if a { c } else { 42 };
 }
 
-fn if_elif_else(mut a: bool, mut b: bool, mut c: str, mut d: str) -> str {
+fn if_elif_else(a: bool, b: bool, c: str, d: str) -> str {
     if a && b {
         return c;
     } else {
@@ -22,13 +22,13 @@ fn if_elif_else(mut a: bool, mut b: bool, mut c: str, mut d: str) -> str {
     }
 }
 
-fn while_loop(mut a: bool, mut b: bool) {
+fn while_loop(a: bool, b: bool) {
     while a || b {
         print("hello");
     }
 }
 
-fn while_break_continue(mut a: bool, mut b: bool) {
+fn while_break_continue(a: bool, b: bool) {
     while true {
         if a {
             break;
@@ -41,7 +41,7 @@ fn while_break_continue(mut a: bool, mut b: bool) {
     }
 }
 
-fn for_loop(mut a: u32, mut b: u32) -> u32 {
+fn for_loop(a: i32, b: i32) -> i32 {
     let mut total = 0;
     for i in range(a, b) {
         total += i;

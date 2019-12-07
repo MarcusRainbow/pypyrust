@@ -25,3 +25,11 @@ def repeated_assign(a: str, b: str) -> str:
     if b == a:
         c = "equal"
     return c
+
+def pathological(a: bool, b: str, c: str) -> str:
+    if a:
+        d = b
+    else:
+        d = c
+    return d
+    
