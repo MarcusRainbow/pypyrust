@@ -1,28 +1,26 @@
 fn hello() {
     println!("hello world!");
-;
 }
 
 fn hello_override_end() {
     print!("hello ");
-;
-    print!("world");
-;
+    print!("world!");
     println!();
-;
 }
 
 fn hello_multi() {
-    print!("hello");
-print!(" ");
-println!("world");
-;
+    println!("{} {}", "hello", "world!");
 }
 
 fn hello_multi_override_sep() {
-    print!("hello");
-print!("_");
-println!("world");
-;
+    println!("{}_{}", "hello", "world!");
+}
+
+fn hello_multi_override_end() {
+    print!("{}_{}!\n", "hello", "world");
+}
+
+fn hello_override_end_non_empty() {
+    print!("{}!\n", "hello world");
 }
 

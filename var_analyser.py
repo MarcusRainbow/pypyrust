@@ -21,10 +21,10 @@ DEFAULT_VALUES = {
     "bool": "false",
     "i64": "0",
     "f64": "0.0",
-    "str": '""',
+    "&str": '""',
 }
 
-def type_from_annotation(annotation: str, arg: str) -> str:
+def type_from_annotation(annotation: str, arg: str, container: bool) -> str:
     if annotation is None:
         print("missing type annotation for argument '{arg}'", file=sys.stderr)
         return 'None'
@@ -34,7 +34,7 @@ def type_from_annotation(annotation: str, arg: str) -> str:
     elif id == 'bool':
         return 'bool'
     elif id == 'str':
-        return 'str'
+        return 'String' if container else '&str'
     elif id == 'num':
         return 'f64'
     else:
@@ -147,7 +147,7 @@ class VariableAnalyser(ast.NodeVisitor):
         self.current_type = ""
 
     def visit_arg(self, node):
-        typed = type_from_annotation(node.annotation, node.arg)
+        typed = type_from_annotation(node.annotation, node.arg, False)
         if node.arg in self.vars:
             raise Exception(f"Repeated argument: {node.arg}")
         self.vars[node.arg] = VariableInfo(True, typed)
@@ -166,7 +166,7 @@ class VariableAnalyser(ast.NodeVisitor):
         self.set_type("bool")
 
     def visit_Str(self, node):
-        self.set_type("str")
+        self.set_type("&str")
 
     def visit_Num(self, node):
         python_type = type(node.n).__name__
@@ -228,7 +228,7 @@ class VariableAnalyser(ast.NodeVisitor):
     def visit_AnnAssign(self, node):
         self.clear_type()
         self.visit(node.value)
-        typed = type_from_annotation(node.annotation, node.target)
+        typed = type_from_annotation(node.annotation, node.target, False)
         self.write_access(node.target.id, typed)
 
     def visit_AugAssign(self, node):

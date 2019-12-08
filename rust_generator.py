@@ -42,7 +42,7 @@ OPERATOR_PRECEDENCE = {
 
 # One bigger than any actual precedence. Use this to force parentheses
 MAX_PRECEDENCE = 13
-
+    
 class RustGenerator(ast.NodeVisitor):
     """
     Visitor of the Python AST which generates Rust code, streaming
@@ -103,7 +103,7 @@ class RustGenerator(ast.NodeVisitor):
 
         # return value
         if node.returns is not None:
-            typed = type_from_annotation(node.returns, "return")
+            typed = type_from_annotation(node.returns, "return", True)
             print(f") -> {typed} {OPEN_BRACE}")
         else:
             print(") {")        
@@ -126,7 +126,7 @@ class RustGenerator(ast.NodeVisitor):
         self.variables.clear()
 
     def visit_arg(self, node):
-        typed = type_from_annotation(node.annotation, node.arg)
+        typed = type_from_annotation(node.annotation, node.arg, False)
         mutable = "mut " if node.arg in self.mutable_vars else ""
         print(f"{self.next_separator}{mutable}{node.arg}: {typed}", end='')
         self.variables.add(node.arg)
@@ -145,6 +145,8 @@ class RustGenerator(ast.NodeVisitor):
     def visit_Call(self, node):
         if node.func.id == "print":
             self.visit_Print(node)
+        elif node.func.id == "range":
+            self.visit_Range(node)
         else:
             self.visit(node.func)
             print("(", end='')
@@ -161,35 +163,81 @@ class RustGenerator(ast.NodeVisitor):
         special-cased, because Rust print is quite different from
         Python.
         """
-        # detect end= override
+        # Detect end= and sep= overrides. We assume that they
+        # are only overridden by constants
         endline = None
-        sep = None
+        sep = " "
         for k in node.keywords:
             if k.arg == "end":
-                endline = k.value
+                endline = ast.literal_eval(k.value)
             elif k.arg == "sep":
-                sep = k.value
+                sep = ast.literal_eval(k.value)
         
-        n = len(node.args)
-        if n == 0:
-            if not endline:
-                print("println!();")
+        # use println if there is a carriage return at the end
+        if endline is None or endline == '\n':
+            print("println!(", end='')
+            suffix = ""
         else:
-            for i, arg in enumerate(node.args):
-                if i != 0:
-                    print("print!(", end='')
-                    if sep:
-                        self.visit(sep)
-                    else:
-                        print('" "', end='')
-                    print(");")
-                if i == n - 1 and not endline:
-                    print("println!(", end='')
-                else:
-                    print("print!(", end='')
+            print("print!(", end='')
+            suffix = endline
+        
+        # Of there is only one or zero argument and no suffix, just print it
+        n = len(node.args)
+        if n <= 1 and suffix == "":
+            if n == 1:
+                self.visit(node.args[0])
+
+        # Otherwise, construct a format string, followed by the arguments.
+        # We assume the first arg is not a c-style format string. 
+        else:
+            separator = ""
+            fmt = ""
+            for _ in range(n):
+                fmt += separator
+                separator = sep
+                fmt += "{}"
+            fmt += suffix
+            # What we are trying to do here is to replace characters like
+            # carriage return or tab with their escaped equivalents.
+            # The trouble with repr is that it encloses the string in
+            # single quotes, so we have to replace those with double.
+            print(f'"{repr(fmt)[1:-1]}"', end='')
+
+            for arg in node.args:
+                print(", ", end='')
                 self.visit(arg)
-                print(");")
-            # for now, we assume that the override sets end to ''
+
+        print(")", end='')
+
+    def visit_Range(self, node):
+        """
+        Not part of the standard visitor pattern, but internally
+        special-cased, because Rust renders Python's range with
+        special syntax.
+
+        Python ranges come in three flavours, depending on the number
+        of arguments, and they map to Rust as follows:
+
+        1. range(a)         ->      0..a
+        2. range(a, b)      ->      a..b
+        3. range(a, b, c)   ->      (a..b).step_by(c)
+        """
+        n = len(node.args)
+        if n == 1:
+            print("0..", end='')
+            self.visit(node.args[0])
+        elif n == 2:
+            self.visit(node.args[0])
+            print("..", end='')
+            self.visit(node.args[1])
+        elif n == 3:
+            print("(")
+            self.visit(node.args[0])
+            print("..", end='')
+            self.visit(node.args[1])
+            print(").step_by(")
+            self.visit(node.args[2])
+            print(")")
 
     def visit_Name(self, node):
         print(f"{node.id}", end='')
@@ -456,7 +504,7 @@ class RustGenerator(ast.NodeVisitor):
                 first = False
             else:
                 # only evaluate expression once
-                print(f" = {first_name}", end='')
+                print(first_name, end='')
             print(";")
 
     def visit_AnnAssign(self, node):
@@ -477,7 +525,7 @@ class RustGenerator(ast.NodeVisitor):
             self.variables.add(name)
 
         self.visit(node.target)
-        typed = type_from_annotation(node.annotation, node.target)
+        typed = type_from_annotation(node.annotation, node.target, False)
         print(f": {typed} = ", end='')
         self.visit(node.value)
         print(";")

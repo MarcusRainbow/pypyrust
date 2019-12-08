@@ -4,12 +4,12 @@ def assignment(a: bool, b: str, c: int, d: int) -> int:
     g = c
     h = c + d
     j = k = l = c + d + g + h
-    return e + f + j + k + l if a else 0
+    return j + k + l if a and e or f == "hello" else 0
 
 def annotated_assignment(a: bool, b: str, c: int, d: int) -> int:
     e: int = 3
     f: bool = a
-    g: str = c
+    g: str = b
     h: int = c + d
     return e + h if a and f and g == "hello" else 0
 

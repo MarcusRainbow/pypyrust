@@ -10,7 +10,7 @@ fn return_if_else(a: bool, c: i64) -> i64 {
     return if a { c } else { 42 };
 }
 
-fn if_elif_else(a: bool, b: bool, c: str, d: str) -> str {
+fn if_elif_else(a: bool, b: bool, c: &str, d: &str) -> String {
     if a && b {
         return c;
     } else {
@@ -25,7 +25,6 @@ fn if_elif_else(a: bool, b: bool, c: str, d: str) -> str {
 fn while_loop(a: bool, b: bool) {
     while a || b {
         println!("hello");
-;
     }
 }
 
@@ -39,13 +38,12 @@ fn while_break_continue(a: bool, b: bool) {
             }
         }
         println!("hello");
-;
     }
 }
 
 fn for_loop(a: i64, b: i64) -> i64 {
     let mut total = 0;
-    for i in range(a, b) {
+    for i in a..b {
         total += i;
     }
     return total;
