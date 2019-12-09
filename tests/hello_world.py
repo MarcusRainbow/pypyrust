@@ -22,3 +22,10 @@ def hello_override_end_non_empty():
 #     w = "world"
 #     print(f"hello {w}")
 
+# def invoke_all():
+#     hello()
+#     hello_override_end()
+#     hello_multi()
+#     hello_multi_override_sep()
+#     hello_multi_override_end()
+#     hello_override_end_non_empty()

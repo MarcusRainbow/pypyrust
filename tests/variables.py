@@ -35,4 +35,12 @@ def pathological(a: bool, b: str, c: str) -> str:
     else:
         d = c
     return d
-    
+
+# def invoke_all():
+#     a = assignment(True, "foo", 1, 2)
+#     b = annotated_assignment(True, "foo", 1, 2)
+#     c = aug_assign(1, 2)
+#     d = repeated_assign("foo", "bar")
+#     e = pathological(True, "foo", "bar")
+#     print(a, b, c, d, e)
+  

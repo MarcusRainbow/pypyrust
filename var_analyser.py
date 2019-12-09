@@ -21,7 +21,16 @@ DEFAULT_VALUES = {
     "bool": "false",
     "i64": "0",
     "f64": "0.0",
-    "&str": '""',
+    "String": 'String::new()',
+    "&str": '""'
+}
+
+TYPE_MAPPING = {
+    "bool": ("bool", "bool"),
+    "int": ("i64", "i64"),
+    "long": ("i64", "i64"),
+    "float": ("f64", "f64"),
+    "str": ("String", "&str"),
 }
 
 def type_from_annotation(annotation: str, arg: str, container: bool) -> str:
@@ -29,16 +38,11 @@ def type_from_annotation(annotation: str, arg: str, container: bool) -> str:
         print("missing type annotation for argument '{arg}'", file=sys.stderr)
         return 'None'
     id = annotation.id
-    if id == 'int':
-        return 'i64'
-    elif id == 'bool':
-        return 'bool'
-    elif id == 'str':
-        return 'String' if container else '&str'
-    elif id == 'num':
-        return 'f64'
+    if id in TYPE_MAPPING:
+        usage = 0 if container else 1
+        return TYPE_MAPPING[id][usage]
     else:
-        print("unrecognised type annotation for argument '{arg}': '{annotation}'", file=sys.stderr)
+        print("unrecognised type annotation for argument '{arg}': '{id}'", file=sys.stderr)
         return annotation
 
 class VariableInfo:
@@ -166,6 +170,11 @@ class VariableAnalyser(ast.NodeVisitor):
         self.set_type("bool")
 
     def visit_Str(self, node):
+        """
+        The type of a hardcoded string in Rust is &str, which
+        can be turned into a String type by either my_str.to_string()
+        or String::from(my_str).
+        """
         self.set_type("&str")
 
     def visit_Num(self, node):
@@ -228,7 +237,7 @@ class VariableAnalyser(ast.NodeVisitor):
     def visit_AnnAssign(self, node):
         self.clear_type()
         self.visit(node.value)
-        typed = type_from_annotation(node.annotation, node.target, False)
+        typed = type_from_annotation(node.annotation, node.target, True)
         self.write_access(node.target.id, typed)
 
     def visit_AugAssign(self, node):

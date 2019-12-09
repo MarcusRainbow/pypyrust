@@ -89,8 +89,9 @@ class RustGenerator(ast.NodeVisitor):
         analyser = VariableAnalyser()
         analyser.visit(node)
 
-        # function name
-        print(f"{self.pretty()}fn {node.name}(", end='')
+        # function name. Always public, as Python has no
+        # private functions.
+        print(f"{self.pretty()}pub fn {node.name}(", end='')
 
         # start with a clean set of variables 
         # (do we need to worry about nested functions?)
@@ -138,6 +139,7 @@ class RustGenerator(ast.NodeVisitor):
         print(";")
 
     def visit_Return(self, node):
+        # TODO ensure type matches
         print(f"{self.pretty()}return ", end='')
         self.generic_visit(node)
         print(";")
@@ -525,7 +527,7 @@ class RustGenerator(ast.NodeVisitor):
             self.variables.add(name)
 
         self.visit(node.target)
-        typed = type_from_annotation(node.annotation, node.target, False)
+        typed = type_from_annotation(node.annotation, node.target, True)
         print(f": {typed} = ", end='')
         self.visit(node.value)
         print(";")
@@ -541,8 +543,8 @@ class RustGenerator(ast.NodeVisitor):
 
 def test_compiler(filename: str):
     input_filename = f"tests/{filename}.py"
-    output_filename = f"temp/{filename}.ru"
-    baseline_filename = f"baseline/{filename}.ru"
+    output_filename = f"temp/{filename}.rs"
+    baseline_filename = f"baseline/src/{filename}.rs"
     
     input_file = open(input_filename, 'r')
     source = input_file.read()
