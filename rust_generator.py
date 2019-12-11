@@ -435,6 +435,7 @@ class RustGenerator(ast.NodeVisitor):
 
     def visit_IfExp(self, node):
         print("if ", end='')
+        self.precedence = 0     # don't need params around if condition
         self.visit(node.test)
         print(" { ", end='')
         self.visit(node.body)
@@ -444,6 +445,7 @@ class RustGenerator(ast.NodeVisitor):
 
     def visit_If(self, node):
         print(f"{self.pretty()}if ", end='')
+        self.precedence = 0     # don't need params around if condition
         self.visit(node.test)
         print(" {")
         self.add_pretty(1)
@@ -460,6 +462,7 @@ class RustGenerator(ast.NodeVisitor):
 
     def visit_While(self, node):
         print(f"{self.pretty()}while ", end='')
+        self.precedence = 0     # don't need params around while condition
         self.visit(node.test)
         print(" {")
         self.add_pretty(1)
@@ -471,6 +474,7 @@ class RustGenerator(ast.NodeVisitor):
     
     def visit_For(self, node):
         print(f"{self.pretty()}for ", end='')
+        self.precedence = 0     # don't need params around for condition
         self.visit(node.target)
         print(" in ", end='')
         self.visit(node.iter)
@@ -510,6 +514,7 @@ class RustGenerator(ast.NodeVisitor):
             self.visit(target)
             print(" = ", end='')
             if first:
+                self.precedence = 0     # don't need params around value
                 self.visit_and_optionally_convert(node.value)
                 first_name = name
                 first = False
@@ -538,6 +543,7 @@ class RustGenerator(ast.NodeVisitor):
         self.visit(node.target)
         typed = type_from_annotation(node.annotation, node.target, True)
         print(f": {typed} = ", end='')
+        self.precedence = 0     # don't need params around value
         self.visit_and_optionally_convert(node.value)
         print(";")
 
@@ -547,6 +553,7 @@ class RustGenerator(ast.NodeVisitor):
         self.in_aug_assign = True
         self.visit(node.op)
         self.in_aug_assign = False
+        self.precedence = 0     # don't need params around value
         self.visit(node.value)
         print(";")
 

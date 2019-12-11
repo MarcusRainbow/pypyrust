@@ -14,7 +14,7 @@ pub fn if_elif_else(a: bool, b: bool, c: &str, d: &str) -> String {
     if a && b {
         return c.to_string();
     } else {
-        if (a || b) {
+        if a || b {
             return d.to_string();
         } else {
             return "Neither".to_string();
@@ -23,7 +23,7 @@ pub fn if_elif_else(a: bool, b: bool, c: &str, d: &str) -> String {
 }
 
 pub fn while_loop(a: bool, b: bool) {
-    while (a || b) {
+    while a || b {
         println!("hello");
     }
 }
