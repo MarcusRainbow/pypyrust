@@ -33,12 +33,3 @@ def for_loop(a: int, b: int) -> int:
     for i in range(a, b):
         total += i
     return total
-
-# def invoke_all():
-#     a = if_else(True, 2)
-#     b = return_if_else(True, 1)
-#     c = if_elif_else(True, False, "foo", "bar")
-#     while_loop(True, False)
-#     while_break_continue(True, False)
-#     d = for_loop(1, 2)
-#     print(a, b, c, d)

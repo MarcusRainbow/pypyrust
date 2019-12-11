@@ -1,0 +1,66 @@
+Function hello:
+    Expr: type=()
+    Call: type=()
+    Name: type=<unknown>
+    Load: type=<unknown>
+    Constant: type=&str
+
+Function hello_override_end:
+    Expr: type=()
+    Call: type=()
+    Name: type=<unknown>
+    Load: type=<unknown>
+    Constant: type=&str
+    keyword: type=<unknown>
+    Constant: type=<unknown>
+    Expr: type=()
+    Call: type=()
+    Name: type=<unknown>
+    Load: type=<unknown>
+    Constant: type=Unknown
+    keyword: type=<unknown>
+    Constant: type=<unknown>
+    Expr: type=()
+    Call: type=()
+    Name: type=<unknown>
+    Load: type=<unknown>
+
+Function hello_multi:
+    Expr: type=()
+    Call: type=()
+    Name: type=<unknown>
+    Load: type=<unknown>
+    Constant: type=&str
+    Constant: type=&str
+
+Function hello_multi_override_sep:
+    Expr: type=()
+    Call: type=()
+    Name: type=<unknown>
+    Load: type=<unknown>
+    Constant: type=&str
+    Constant: type=&str
+    keyword: type=<unknown>
+    Constant: type=<unknown>
+
+Function hello_multi_override_end:
+    Expr: type=()
+    Call: type=()
+    Name: type=<unknown>
+    Load: type=<unknown>
+    Constant: type=&str
+    Constant: type=&str
+    keyword: type=<unknown>
+    Constant: type=<unknown>
+    keyword: type=<unknown>
+    Constant: type=<unknown>
+
+Function hello_override_end_non_empty:
+    Expr: type=()
+    Call: type=()
+    Name: type=<unknown>
+    Load: type=<unknown>
+    Constant: type=&str
+    keyword: type=<unknown>
+    Constant: type=<unknown>
+

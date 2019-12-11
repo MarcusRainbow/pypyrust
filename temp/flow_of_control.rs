@@ -12,18 +12,18 @@ pub fn return_if_else(a: bool, c: i64) -> i64 {
 
 pub fn if_elif_else(a: bool, b: bool, c: &str, d: &str) -> String {
     if a && b {
-        return c;
+        return c.to_string();
     } else {
-        if a || b {
-            return d;
+        if (a || b) {
+            return d.to_string();
         } else {
-            return "Neither";
+            return "Neither".to_string();
         }
     }
 }
 
 pub fn while_loop(a: bool, b: bool) {
-    while a || b {
+    while (a || b) {
         println!("hello");
     }
 }

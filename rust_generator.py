@@ -7,7 +7,7 @@ import sys
 from enum import Enum
 import filecmp
 import os
-from var_analyser import VariableAnalyser, type_from_annotation
+from var_analyser import VariableAnalyser, type_from_annotation, container_type_needed
 
 OPEN_BRACE = '{'
 CLOSE_BRACE = '}'
@@ -41,8 +41,7 @@ OPERATOR_PRECEDENCE = {
 }
 
 # One bigger than any actual precedence. Use this to force parentheses
-MAX_PRECEDENCE = 13
-    
+MAX_PRECEDENCE = 13  
 class RustGenerator(ast.NodeVisitor):
     """
     Visitor of the Python AST which generates Rust code, streaming
@@ -56,6 +55,7 @@ class RustGenerator(ast.NodeVisitor):
         self.in_aug_assign = False
         self.variables = set()
         self.mutable_vars = set()
+        self.type_by_node = {}
 
     def pretty(self):
         return '    ' * self.indent
@@ -83,11 +83,21 @@ class RustGenerator(ast.NodeVisitor):
         if prec < self.precedence:
             print(")", end='')
 
+    def visit_and_optionally_convert(self, node):
+        conversion = container_type_needed(node, self.type_by_node)
+        if conversion:
+            self.precedence = MAX_PRECEDENCE * 2
+            self.visit(node)
+            print(conversion, end='')
+        else:
+            self.visit(node)
+
     def visit_FunctionDef(self, node):
         # Analyse the variables in this function to see which need
         # to be predeclared or marked as mutable
         analyser = VariableAnalyser()
         analyser.visit(node)
+        self.type_by_node = analyser.get_type_by_node()
 
         # function name. Always public, as Python has no
         # private functions.
@@ -139,9 +149,8 @@ class RustGenerator(ast.NodeVisitor):
         print(";")
 
     def visit_Return(self, node):
-        # TODO ensure type matches
         print(f"{self.pretty()}return ", end='')
-        self.generic_visit(node)
+        self.visit_and_optionally_convert(node.value)
         print(";")
 
     def visit_Call(self, node):
@@ -501,7 +510,7 @@ class RustGenerator(ast.NodeVisitor):
             self.visit(target)
             print(" = ", end='')
             if first:
-                self.visit(node.value)
+                self.visit_and_optionally_convert(node.value)
                 first_name = name
                 first = False
             else:
@@ -529,7 +538,7 @@ class RustGenerator(ast.NodeVisitor):
         self.visit(node.target)
         typed = type_from_annotation(node.annotation, node.target, True)
         print(f": {typed} = ", end='')
-        self.visit(node.value)
+        self.visit_and_optionally_convert(node.value)
         print(";")
 
     def visit_AugAssign(self, node):
