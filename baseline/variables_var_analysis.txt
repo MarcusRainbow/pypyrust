@@ -173,6 +173,13 @@ Function repeated_assign:
     Store: type=<unknown>
     Name: type=&str
     Load: type=<unknown>
+    If: type=<unknown>
+    Compare: type=bool
+    Name: type=&str
+    Load: type=<unknown>
+    NotEq: type=&str
+    Name: type=&str
+    Load: type=<unknown>
     Assign: type=<unknown>
     Name: type=String
     Store: type=<unknown>

@@ -7,7 +7,7 @@ import sys
 from enum import Enum
 import filecmp
 import os
-from var_analyser import VariableAnalyser, type_from_annotation, container_type_needed
+from var_analyser import VariableAnalyser, type_from_annotation, container_type_needed, get_node_path
 
 OPEN_BRACE = '{'
 CLOSE_BRACE = '}'
@@ -154,19 +154,28 @@ class RustGenerator(ast.NodeVisitor):
         print(";")
 
     def visit_Call(self, node):
-        if node.func.id == "print":
-            self.visit_Print(node)
-        elif node.func.id == "range":
-            self.visit_Range(node)
-        else:
-            self.visit(node.func)
-            print("(", end='')
-            sep = ""
-            for a in node.args:
-                print(sep, end='')
-                self.visit(a)
-                sep = ", "
-            print(")", end='')
+        node_path = get_node_path(node.func)
+        if node_path and len(node_path) == 1:
+            if node_path[0] == "print":
+                return self.visit_Print(node)
+            elif node_path[0] == "range":
+                return self.visit_Range(node)
+
+        # Function name, with namespacing if required. Note that if
+        # any namespacing is required, we first need an initial
+        # :: so we start from the global namespace.
+        separator = "::" if len(node_path) > 1 else ""
+        for name in node_path:
+            print(separator, end='')
+            print(name, end='')
+
+        print("(", end='')
+        sep = ""
+        for a in node.args:
+            print(sep, end='')
+            self.visit(a)
+            sep = ", "
+        print(")", end='')
 
     def visit_Print(self, node):
         """
@@ -566,6 +575,11 @@ def test_compiler(filename: str):
     source = input_file.read()
     input_file.close()
 
+    # for var_analysis to be able to find the type hints for
+    # functions in other modules, they must be on the path
+    old_sys_path = sys.path
+    sys.path.append("./tests")
+
     output_file = open(output_filename, 'w')
     old_stdout = sys.stdout
     sys.stdout = output_file
@@ -574,7 +588,10 @@ def test_compiler(filename: str):
     output_file.close()
     sys.stdout = old_stdout
 
-    ok = filecmp.cmp(baseline_filename, output_filename, shallow=False)
+    sys.path = old_sys_path
+
+    ok = (os.path.isfile(baseline_filename) and 
+        filecmp.cmp(baseline_filename, output_filename, shallow=False))
     if ok:
         print(f"test {filename} succeeded")
         os.remove(output_filename)
@@ -586,3 +603,5 @@ if __name__ == "__main__":
     test_compiler("add_mult")
     test_compiler("flow_of_control")
     test_compiler("variables")
+    test_compiler("function_calls")
+

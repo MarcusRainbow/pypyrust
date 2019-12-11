@@ -21,7 +21,7 @@ def while_loop(a: bool, b: bool):
         print("hello")
 
 def while_break_continue(a: bool, b: bool):
-    while True:
+    while True and a or b:
         if a:
             break
         elif b:

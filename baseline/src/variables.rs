@@ -29,7 +29,9 @@ pub fn aug_assign(a: i64, b: i64) -> i64 {
 
 pub fn repeated_assign(a: &str, b: &str) -> String {
     let mut c = a.to_string();
-    c = b.to_string();
+    if a != b {
+        c = b.to_string();
+    }
     if b == a {
         c = "equal".to_string();
     }

@@ -29,7 +29,7 @@ pub fn while_loop(a: bool, b: bool) {
 }
 
 pub fn while_break_continue(a: bool, b: bool) {
-    while true {
+    while true && a || b {
         if a {
             break;
         } else {

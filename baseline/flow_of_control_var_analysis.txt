@@ -57,7 +57,15 @@ Function while_loop:
 
 Function while_break_continue:
     While: type=<unknown>
+    BoolOp: type=bool
+    Or: type=
+    BoolOp: type=bool
+    And: type=
     Constant: type=bool
+    Name: type=bool
+    Load: type=<unknown>
+    Name: type=bool
+    Load: type=<unknown>
     If: type=<unknown>
     Name: type=bool
     Load: type=<unknown>

@@ -24,7 +24,8 @@ def aug_assign(a: int, b: int) -> int:
 
 def repeated_assign(a: str, b: str) -> str:
     c = a
-    c = b
+    if a != b:
+        c = b
     if b == a:
         c = "equal"
     return c

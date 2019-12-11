@@ -7,6 +7,7 @@ import sys
 from typing import Dict, Set, List, Tuple, get_type_hints
 import filecmp
 import os
+from importlib import import_module, invalidate_caches
 
 # Mapping from pair of Rust types (e.g. a binary op) to Rust type
 TYPE_COERCIONS = {
@@ -48,16 +49,22 @@ CONTAINER_CONVERSIONS = {
     "&str": ".to_string()"
 }
 
-def type_from_annotation(annotation: str, arg: str, container: bool) -> str:
+def type_from_annotation(annotation, arg: str, container: bool) -> str:
     if annotation is None:
-        print("missing type annotation for argument '{arg}'", file=sys.stderr)
+        print(f"missing type annotation for argument '{arg}'", file=sys.stderr)
         return 'None'
-    id = annotation.id
+    elif isinstance(annotation, str):
+        id = annotation
+    elif isinstance(annotation, ast.Name):
+        id = annotation.id
+    else:
+        id = annotation.__name__
+        
     if id in TYPE_MAPPING:
         arg_type = TYPE_MAPPING[id]
         return container_type(arg_type) if container else arg_type
     else:
-        print("unrecognised type annotation for argument '{arg}': '{id}'", file=sys.stderr)
+        print(f"unrecognised type annotation for argument '{arg}': '{id}'", file=sys.stderr)
         return annotation
 
 def container_type(arg_type: str) -> str:
@@ -82,6 +89,30 @@ def container_type_needed(node, types: Dict[object, str]) -> str:
         if typed in CONTAINER_CONVERSIONS:
             return CONTAINER_CONVERSIONS[typed]
     return None
+
+def get_node_path(node) -> List[str]:
+    """
+    Returns the address of a node, starting from the global namespace
+    """
+    if isinstance(node, ast.Name):
+        return [node.id]    # already in the global namespace
+    elif isinstance(node, ast.Attribute):
+        # recurse, adding nodes until we get to a global name
+        path = get_node_path(node.value)
+        path.append(node.attr)
+        return path
+    else:
+        raise Exception("Cannot find path to node")
+
+IMPORTED_MODULES = {}
+def load_and_import_module(name: str) -> object:
+    if name in IMPORTED_MODULES:
+        return IMPORTED_MODULES[name]
+    
+    module = import_module(name)
+    invalidate_caches()
+    IMPORTED_MODULES[name] = module
+    return module
     
 class VariableInfo:
     """
@@ -238,22 +269,34 @@ class VariableAnalyser(ast.NodeVisitor):
 
         # a few functions are well-known (and in any case, they
         # do not behave properly with the below code)
-        func_name = node.func.id
-        if func_name in STANDARD_FUNCTION_RETURNS:
-            self.set_type(STANDARD_FUNCTION_RETURNS[func_name], node)
+        func_path = get_node_path(node.func)
+        if func_path and len(func_path) == 1 and func_path[0] in STANDARD_FUNCTION_RETURNS:
+            self.set_type(STANDARD_FUNCTION_RETURNS[func_path[0]], node)
             return
 
-        # try to find the type of the function
-        namespace = __import__(__name__)
-        try:
-            func = getattr(namespace, func_name)
-            types = get_type_hints(func)
-            if "return" in types:
-                typed = type_from_annotation(types["return"], func_name, True)
-                self.set_type(typed, node)
+        # Assume function names with no module are defined locally
+        if len(func_path) == 1:
+            print(f"Warning: cannot yet handle locals: {func_path[0]}",
+                file = sys.stderr)
 
-        except AttributeError:
-            pass
+        # We currently only handle module.func_name
+        if len(func_path) != 2:
+            return
+
+        # Locate the function. In order to do this, we actually load
+        # the module of interest into our own process space. Maybe
+        # consider making this optional, as it is a bit of a
+        # sledgehammer.
+        module_name = func_path[0]
+        func_name = func_path[1]
+        namespace = load_and_import_module(module_name)
+        func = getattr(namespace, func_name)
+
+        # try to find the type of the function
+        types = get_type_hints(func)
+        if "return" in types:
+            typed = type_from_annotation(types["return"],func_name, True)
+            self.set_type(typed, node)
 
     def visit_Return(self, node):
         """
@@ -420,6 +463,11 @@ def test_analyser(filename):
     source = input_file.read()
     input_file.close()
 
+    # for var_analysis to be able to find the type hints for
+    # functions in other modules, they must be on the path
+    old_sys_path = sys.path
+    sys.path.append("./tests")
+
     output_file = open(output_filename, 'w')
     old_stdout = sys.stdout
     sys.stdout = output_file
@@ -428,7 +476,10 @@ def test_analyser(filename):
     output_file.close()
     sys.stdout = old_stdout
 
-    ok = filecmp.cmp(baseline_filename, output_filename, shallow=False)
+    sys.path = old_sys_path
+
+    ok = (os.path.isfile(baseline_filename) and 
+        filecmp.cmp(baseline_filename, output_filename, shallow=False))
     if ok:
         print(f"test {filename} succeeded")
         os.remove(output_filename)
@@ -440,3 +491,4 @@ if __name__ == "__main__":
     test_analyser("add_mult")
     test_analyser("flow_of_control")
     test_analyser("variables")
+    test_analyser("function_calls")
