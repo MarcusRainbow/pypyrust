@@ -6,6 +6,7 @@ file and generates a Rust source file, representing the Python.
 import ast
 import sys
 from rust_generator import RustGenerator
+from var_analyser import FunctionHeaderFinder
 
 def compile_to_rust(source, filename: str) -> bool:
     """
@@ -23,8 +24,12 @@ def compile_to_rust(source, filename: str) -> bool:
     # compile the python source into an AST
     tree = ast.parse(source, filename, 'exec')
 
+    # Find the local header definitions
+    function_finder = FunctionHeaderFinder()
+    function_finder.visit(tree)
+
     # Walk the tree, outputting Rust code as we go (rather like XSLT)
-    RustGenerator().visit(tree)
+    RustGenerator(function_finder.get_return_types()).visit(tree)
 
     return True
 

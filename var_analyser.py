@@ -113,7 +113,24 @@ def load_and_import_module(name: str) -> object:
     invalidate_caches()
     IMPORTED_MODULES[name] = module
     return module
-    
+
+class FunctionHeaderFinder(ast.NodeVisitor):
+    """
+    Given an AST representing a module, find all the function
+    definitions and record the return types.
+    """
+
+    def __init__(self):
+        self.return_types : Dict[str, str] = {}
+
+    def get_return_types(self) -> Dict[str, str]:
+        return self.return_types
+
+    def visit_FunctionDef(self, node):
+        name = node.name
+        typed = type_from_annotation(node.returns, f"{name} return", True)
+        self.return_types[name] = typed
+
 class VariableInfo:
     """
     Class that represents the declaration and usage of a variable.
@@ -128,7 +145,12 @@ class VariableAnalyser(ast.NodeVisitor):
     and usage. Results are retained internally.
     """
 
-    def __init__(self):
+    def __init__(self, return_types: Dict[str, str]):
+        """
+        The return types are a dictionary of local function name
+        to return type.
+        """
+        self.return_types = return_types
         self.type_by_node: Dict[object, str] = {}
         self.vars: Dict[str, VariableInfo] = {}
         self.out_of_scope: Dict[str, VariableInfo] = {}
@@ -276,8 +298,11 @@ class VariableAnalyser(ast.NodeVisitor):
 
         # Assume function names with no module are defined locally
         if len(func_path) == 1:
-            print(f"Warning: cannot yet handle locals: {func_path[0]}",
-                file = sys.stderr)
+            if func_path[0] not in self.return_types:
+                print(f"Warning: cannot find function return for: {func_path[0]}",
+                    file = sys.stderr)
+            else:
+                self.set_type(self.return_types[func_path[0]], node)
 
         # We currently only handle module.func_name
         if len(func_path) != 2:
@@ -443,9 +468,12 @@ class TestFunctionFinder(ast.NodeVisitor):
     Simply used for testing. Invoke VariableAnalyser
     on each function we see
     """
+    def __init__(self, return_types):
+        self.return_types = return_types
+
     def visit_FunctionDef(self, node):
         print(f"Function {node.name}:")
-        analyser = VariableAnalyser()
+        analyser = VariableAnalyser(self.return_types)
         analyser.visit(node)
         type_by_node = analyser.get_type_by_node()
 
@@ -472,10 +500,13 @@ def test_analyser(filename):
     old_stdout = sys.stdout
     sys.stdout = output_file
     tree = ast.parse(source, filename, 'exec')
-    TestFunctionFinder().visit(tree)
+
+    function_finder = FunctionHeaderFinder()
+    function_finder.visit(tree)
+    TestFunctionFinder(function_finder.get_return_types()).visit(tree)
+
     output_file.close()
     sys.stdout = old_stdout
-
     sys.path = old_sys_path
 
     ok = (os.path.isfile(baseline_filename) and 
@@ -492,3 +523,4 @@ if __name__ == "__main__":
     test_analyser("flow_of_control")
     test_analyser("variables")
     test_analyser("function_calls")
+    # test_analyser("tuples")

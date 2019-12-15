@@ -7,7 +7,9 @@ import sys
 from enum import Enum
 import filecmp
 import os
-from var_analyser import VariableAnalyser, type_from_annotation, container_type_needed, get_node_path
+from typing import Dict
+from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
+    type_from_annotation, container_type_needed, get_node_path
 
 OPEN_BRACE = '{'
 CLOSE_BRACE = '}'
@@ -48,7 +50,8 @@ class RustGenerator(ast.NodeVisitor):
     it out to stdout.
     """
 
-    def __init__(self):
+    def __init__(self, return_types: Dict[str, str]):
+        self.return_types = return_types
         self.indent = 0
         self.next_separator = ""
         self.precedence = 0
@@ -95,7 +98,7 @@ class RustGenerator(ast.NodeVisitor):
     def visit_FunctionDef(self, node):
         # Analyse the variables in this function to see which need
         # to be predeclared or marked as mutable
-        analyser = VariableAnalyser()
+        analyser = VariableAnalyser(self.return_types)
         analyser.visit(node)
         self.type_by_node = analyser.get_type_by_node()
 
@@ -584,7 +587,10 @@ def test_compiler(filename: str):
     old_stdout = sys.stdout
     sys.stdout = output_file
     tree = ast.parse(source, filename, 'exec')
-    RustGenerator().visit(tree)
+
+    function_finder = FunctionHeaderFinder()
+    function_finder.visit(tree)
+    RustGenerator(function_finder.get_return_types()).visit(tree)
     output_file.close()
     sys.stdout = old_stdout
 
@@ -604,4 +610,5 @@ if __name__ == "__main__":
     test_compiler("flow_of_control")
     test_compiler("variables")
     test_compiler("function_calls")
+    # test_compiler("tuples")
 

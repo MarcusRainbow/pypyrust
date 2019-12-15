@@ -107,8 +107,8 @@ Function call_local:
     Load: type=<unknown>
     Gt: type=i64
     Constant: type=i64
-    Return: type=
-    Call: type=<unknown>
+    Return: type=i64
+    Call: type=i64
     Name: type=<unknown>
     Load: type=<unknown>
     BinOp: type=i64
@@ -120,8 +120,8 @@ Function call_local:
     Load: type=<unknown>
     Name: type=i64
     Load: type=<unknown>
-    Return: type=
-    Call: type=<unknown>
+    Return: type=i64
+    Call: type=i64
     Name: type=<unknown>
     Load: type=<unknown>
     Name: type=i64
