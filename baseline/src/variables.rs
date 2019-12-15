@@ -10,10 +10,10 @@ pub fn assignment(a: bool, b: &str, c: i64, d: i64) -> i64 {
 }
 
 pub fn annotated_assignment(a: bool, b: &str, c: i64, d: i64) -> i64 {
-    let e: i64 = 3;
-    let f: bool = a;
-    let g: String = b.to_string();
-    let h: i64 = c + d;
+    let mut e: i64 = 3;
+    let mut f: bool = a;
+    let mut g: String = b.to_string();
+    let mut h: i64 = c + d;
     return if a && f && g == "hello" { e + h } else { 0 };
 }
 

@@ -7,7 +7,7 @@ import sys
 from enum import Enum
 import filecmp
 import os
-from typing import Dict
+from typing import Dict, Tuple
 from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
     type_from_annotation, container_type_needed, get_node_path
 
@@ -94,6 +94,40 @@ class RustGenerator(ast.NodeVisitor):
             print(conversion, end='')
         else:
             self.visit(node)
+
+    def is_variable_mutable_declared(self, target) -> Tuple[bool, bool]:
+        """
+        Returns true if the variable is mutable, followed by
+        true if the variable is already declared.
+        """
+        if isinstance(target, ast.Name):
+            name = target.id
+            mutable = name in self.mutable_vars
+            declared = name in self.variables
+
+            # if the variable is not yet declared, mark it as such
+            # so we don't declare it twice
+            if not declared:
+                self.variables.add(name)
+
+            return mutable, declared
+
+        elif isinstance(target, Tuple):
+            # if this is a tuple, all of the contained variables should
+            # be declared or none of them. Treat them as mutable if any
+            # need to be. Treat them as declared if any are (undeclared
+            # variables will give rise to a Rust error).
+            mutable, declared = False, False
+            for element in target.elts:
+                el_mut, el_dec = self.is_variable_mutable_declared(element)
+                if el_mut:
+                    mutable = True
+                if el_dec:
+                    declared = True
+        else:
+            # unrecognised type. Add a warning and continue
+            print("Warning: unrecognised variable type", file=sys.stderr)
+            return True, False
 
     def visit_FunctionDef(self, node):
         # Analyse the variables in this function to see which need
@@ -276,6 +310,20 @@ class RustGenerator(ast.NodeVisitor):
 
     def visit_Num(self, node):
         print(f"{node.n}", end='')
+
+    def visit_Tuple(self, node):
+        print("(", end='')
+        separator = ""
+        for element in node.elts:
+            print(separator, end='')
+            self.visit(element)
+            separator = ", "
+        print(")", end='')
+
+    def visit_Index(self, node):
+        print("[", end='')
+        self.visit(node.value)
+        print("]", end='')
 
     def visit_BinOp(self, node):
         # some binary operators such as '+' translate
@@ -515,24 +563,23 @@ class RustGenerator(ast.NodeVisitor):
         for target in node.targets:
             # treatment depends on whether it is the first time we
             # have seen this variable. (Do not use shadowing.)
-            name = target.id
-            if name in self.variables:
+            mutable, declared = self.is_variable_mutable_declared(target)
+            if declared:
                 print(f"{self.pretty()}", end='')
             else:
-                mutable = "mut " if name in self.mutable_vars else ""
-                print(f"{self.pretty()}let {mutable}", end='')
-                self.variables.add(name)
+                mut = "mut " if mutable else ""
+                print(f"{self.pretty()}let {mut}", end='')
 
             self.visit(target)
             print(" = ", end='')
             if first:
                 self.precedence = 0     # don't need params around value
                 self.visit_and_optionally_convert(node.value)
-                first_name = name
+                first_target = target
                 first = False
             else:
                 # only evaluate expression once
-                print(first_name, end='')
+                self.visit(first_target)
             print(";")
 
     def visit_AnnAssign(self, node):
@@ -544,13 +591,12 @@ class RustGenerator(ast.NodeVisitor):
         """
         # treatment depends on whether it is the first time we
         # have seen this variable. (Do not use shadowing.)
-        name = node.target.id
-        if name in self.variables:
+        mutable, declared = self.is_variable_mutable_declared(node)
+        if declared:
             print(f"{self.pretty()}", end='')
         else:
-            mutable = "mut " if name in self.mutable_vars else ""
-            print(f"{self.pretty()}let {mutable}", end='')
-            self.variables.add(name)
+            mut = "mut " if mutable else ""
+            print(f"{self.pretty()}let {mut}", end='')
 
         self.visit(node.target)
         typed = type_from_annotation(node.annotation, node.target, True)
@@ -610,5 +656,5 @@ if __name__ == "__main__":
     test_compiler("flow_of_control")
     test_compiler("variables")
     test_compiler("function_calls")
-    # test_compiler("tuples")
+    test_compiler("tuples")
 

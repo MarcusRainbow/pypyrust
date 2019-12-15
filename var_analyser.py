@@ -57,8 +57,13 @@ def type_from_annotation(annotation, arg: str, container: bool) -> str:
         id = annotation
     elif isinstance(annotation, ast.Name):
         id = annotation.id
-    else:
+    elif isinstance(annotation, type):
         id = annotation.__name__
+    elif isinstance(annotation, ast.Subscript):
+        return type_from_subscript(annotation, arg, container)
+    else:
+        print(f"unexpected type of annotation for argument '{arg}'", file=sys.stderr)
+        return 'None'
         
     if id in TYPE_MAPPING:
         arg_type = TYPE_MAPPING[id]
@@ -66,6 +71,24 @@ def type_from_annotation(annotation, arg: str, container: bool) -> str:
     else:
         print(f"unrecognised type annotation for argument '{arg}': '{id}'", file=sys.stderr)
         return annotation
+
+def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) -> str:
+    """
+    Return a type that is a Tuple, List, Dictionary, Set
+    """
+    container_type = annotation.value.id
+    if container_type == "Tuple":
+        start, end = "(", ")"
+    elif container_type == "List":
+        start, end = "[", "]"
+    elif container_type == "Set":
+        start, end = "{", "}"
+    else:
+        start, end = "<unknown>", "</unknown>"
+
+    types = [type_from_annotation(e, arg, container)
+        for e in annotation.slice.value.elts]
+    return f"{start}{', '.join(types)}{end}"
 
 def container_type(arg_type: str) -> str:
     """
@@ -351,6 +374,17 @@ class VariableAnalyser(ast.NodeVisitor):
         else:
             raise Exception(f"Unsupported numeric type: {python_type}")
 
+    def visit_Tuple(self, node):
+        types = []
+        for element in node.elts:
+            self.clear_type()
+            self.visit(element)
+            types.append(self.current_type)
+        
+        self.clear_type()
+        type_string = f"({', '.join(types)})"
+        self.set_type(type_string, node)
+
     def visit_BinOp(self, node):
         """
         A binary operator acting on a reference type such as a &str
@@ -440,19 +474,35 @@ class VariableAnalyser(ast.NodeVisitor):
         self.clear_type()
         self.visit(node.value)
         for target in node.targets:
-            self.write_access(target.id, container_type(self.current_type), target)
+            self.handle_assignment(target, self.current_type)
+        
+    def handle_assignment(self, target, typed: str):
+
+        # May just be a single variable to assign
+        if isinstance(target, ast.Name):
+            self.write_access(target.id, container_type(typed), target)
+
+        # May be a tuple. e.g. a, b = foo()
+        elif isinstance(target, ast.Tuple):
+            if typed[0] != '(' or typed[-1] != ')':
+                print("Warning: cannot assign tuple from non-tuple", file=sys.stderr)
+                return
+            
+            subtypes = typed.split(", ")
+            for e, subtype in zip(target.elts, subtypes):
+                self.handle_assignment(e, subtype)
 
     def visit_AnnAssign(self, node):
         self.clear_type()
         self.visit(node.value)
         typed = type_from_annotation(node.annotation, node.target, True)
-        self.write_access(node.target.id, typed, node.target)
+        self.handle_assignment(node.target, typed)
 
     def visit_AugAssign(self, node):
         # x += foo is the same as x = x + foo
         typed = self.read_access(node.target)
         self.visit(node.value)
-        self.write_access(node.target.id, typed, node.target)
+        self.handle_assignment(node.target, typed)
 
 class TestTreePrinter(ast.NodeVisitor):
     def __init__(self, types):
@@ -523,4 +573,4 @@ if __name__ == "__main__":
     test_analyser("flow_of_control")
     test_analyser("variables")
     test_analyser("function_calls")
-    # test_analyser("tuples")
+    test_analyser("tuples")
