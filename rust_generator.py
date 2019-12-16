@@ -66,6 +66,21 @@ class RustGenerator(ast.NodeVisitor):
     def add_pretty(self, increment: int):
         self.indent += increment
 
+    def temp_variable(self):
+        """
+        Returns a string that can safely be used as a
+        temp variable name
+        """
+        name = "tmp"
+        i = 0
+        while name in self.variables:
+            name = f"tmp{i}"
+            i += 1
+        
+        # make sure we don't use this one again
+        self.variables.add(name)
+        return name
+
     def print_operator(self, op: str):
         if self.in_aug_assign:
             print(f" {op}= ", end='')
@@ -95,39 +110,61 @@ class RustGenerator(ast.NodeVisitor):
         else:
             self.visit(node)
 
-    def is_variable_mutable_declared(self, target) -> Tuple[bool, bool]:
+    def sex_variable(self, target) -> Tuple[bool, bool, bool]:
         """
-        Returns true if the variable is mutable, followed by
-        true if the variable is already declared.
+        Finds out how a variable is to be treated in an
+        assignment. Returns three bools:
+
+        1. Is the variable mutable?
+        2. Is the variable already declared?
+        3. Is the variable suitable for assignment?
+
+        If the variable is not already declared this function returns
+        true in its second return value, but internally sets the 
+        declared flag, as the variable is about to be declared.
+
+        Rust, for some perverse reason, does not allow assignment of
+        tuples in the form a, b = foo(). For example, the standard
+        Python way to swap two variables is not legal Rust. As a
+        result, we may need to use a temp variable.
         """
         if isinstance(target, ast.Name):
             name = target.id
             mutable = name in self.mutable_vars
             declared = name in self.variables
+            assignable = True
 
             # if the variable is not yet declared, mark it as such
             # so we don't declare it twice
             if not declared:
                 self.variables.add(name)
 
-            return mutable, declared
+            return mutable, declared, assignable
 
-        elif isinstance(target, Tuple):
+        elif isinstance(target, ast.Tuple):
             # if this is a tuple, all of the contained variables should
             # be declared or none of them. Treat them as mutable if any
             # need to be. Treat them as declared if any are (undeclared
             # variables will give rise to a Rust error).
             mutable, declared = False, False
             for element in target.elts:
-                el_mut, el_dec = self.is_variable_mutable_declared(element)
+                el_mut, el_dec, _ = self.sex_variable(element)
                 if el_mut:
                     mutable = True
                 if el_dec:
                     declared = True
+            return mutable, declared, False
+
+        elif isinstance(target, ast.Subscript):
+            # If the target of the assignment is an element from a tuple
+            # or list (e.g. a[3] = 42) we assume the target is mutable and
+            # declared.
+            return True, True, True
+
         else:
             # unrecognised type. Add a warning and continue
             print("Warning: unrecognised variable type", file=sys.stderr)
-            return True, False
+            return True, False, True
 
     def visit_FunctionDef(self, node):
         # Analyse the variables in this function to see which need
@@ -320,10 +357,21 @@ class RustGenerator(ast.NodeVisitor):
             separator = ", "
         print(")", end='')
 
-    def visit_Index(self, node):
-        print("[", end='')
+    def visit_Subscript(self, node):
+        """
+        Subscript is used in Python for both lists and tuples. However, the
+        subscript syntax in Rust is different for these two cases. We
+        need to know which we are doing.
+        """
         self.visit(node.value)
-        print("]", end='')
+        typed = self.type_by_node[node.value]
+        if typed and typed[0] == '(':
+            print(".", end='')
+            self.visit(node.slice)
+        else:
+            print("[", end='')
+            self.visit(node.slice)
+            print("]", end='')
 
     def visit_BinOp(self, node):
         # some binary operators such as '+' translate
@@ -561,16 +609,29 @@ class RustGenerator(ast.NodeVisitor):
         """
         first = True
         for target in node.targets:
+            print(f"{self.pretty()}", end='')
+
             # treatment depends on whether it is the first time we
             # have seen this variable. (Do not use shadowing.)
-            mutable, declared = self.is_variable_mutable_declared(target)
-            if declared:
-                print(f"{self.pretty()}", end='')
-            else:
-                mut = "mut " if mutable else ""
-                print(f"{self.pretty()}let {mut}", end='')
+            mutable, declared, assignable = self.sex_variable(target)
+            tmp_var_name = None
+            if not declared:
+                print("let ", end='')
+                if mutable and assignable:
+                    print("mut ", end='')
 
-            self.visit(target)
+            elif not assignable:
+                # May be a tuple. This is tricky in Rust. Where Python supports
+                # a, b = foo(), Python only supports this inside a let declaration:
+                # let (a, b) = foo(). The assignable flag tells us this. If
+                # necessary use a temp variable.
+                tmp_var_name = self.temp_variable()
+
+            if tmp_var_name:
+                print(f"let {tmp_var_name}", end='')
+            else:
+                self.visit(target)      # assign directly to what we want
+
             print(" = ", end='')
             if first:
                 self.precedence = 0     # don't need params around value
@@ -582,6 +643,26 @@ class RustGenerator(ast.NodeVisitor):
                 self.visit(first_target)
             print(";")
 
+            # now we may need to assign what we originally wanted to
+            if tmp_var_name:
+                self.assign_tuple(target, tmp_var_name)
+
+    def assign_tuple(self, node, tmp_var_name: str):
+        """
+        As Rust does not allow direct assignment to an unpacked
+        tuple, e.g. a, b = foo(), we unpack this into multiple
+        lines:
+
+        let tmp = foo()
+        a = tmp.1
+        b = tmp.2
+        """
+        assert(isinstance(node, ast.Tuple))
+        for i, element in enumerate(node.elts):
+            print(self.pretty(), end='')
+            self.visit(element)
+            print(f" = {tmp_var_name}.{i};")
+
     def visit_AnnAssign(self, node):
         """
         Hinted variable assignment statement, such as x: int = 42
@@ -591,7 +672,7 @@ class RustGenerator(ast.NodeVisitor):
         """
         # treatment depends on whether it is the first time we
         # have seen this variable. (Do not use shadowing.)
-        mutable, declared = self.is_variable_mutable_declared(node)
+        mutable, declared, _ = self.sex_variable(node.target)
         if declared:
             print(f"{self.pretty()}", end='')
         else:

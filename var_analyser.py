@@ -350,6 +350,7 @@ class VariableAnalyser(ast.NodeVisitor):
         """
         We always return a contained type
         """
+        self.clear_type()
         self.generic_visit(node)
         self.set_type_container(node)
 
@@ -384,6 +385,29 @@ class VariableAnalyser(ast.NodeVisitor):
         self.clear_type()
         type_string = f"({', '.join(types)})"
         self.set_type(type_string, node)
+
+    def visit_Subscript(self, node):
+        """
+        Current type is the type of the container. We want the type
+        of the element. For now, we assume that if the subscript is a
+        constant, we can use that element of the type. Otherwise hope
+        the array is consistently typed, and just use the first.
+        """
+
+        old_type = self.current_type
+        self.clear_type()
+        self.visit(node.slice)      # the integer type of the index
+        self.clear_type()
+        self.visit(node.value)      # the name of the variable
+
+        types = self.current_type[1:-1].split(", ")
+        try:
+            index = ast.literal_eval(node.slice)
+        except:
+            index = 0   # if the index is not constant, just use the first
+
+        self.current_type = old_type
+        self.set_type(types[index], node)
 
     def visit_BinOp(self, node):
         """
@@ -488,7 +512,7 @@ class VariableAnalyser(ast.NodeVisitor):
                 print("Warning: cannot assign tuple from non-tuple", file=sys.stderr)
                 return
             
-            subtypes = typed.split(", ")
+            subtypes = typed[1:-1].split(", ")
             for e, subtype in zip(target.elts, subtypes):
                 self.handle_assignment(e, subtype)
 

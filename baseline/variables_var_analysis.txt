@@ -47,12 +47,12 @@ Function assignment:
     Return: type=i64
     IfExp: type=i64
     BoolOp: type=bool
-    Or: type=i64
+    Or: type=
     BoolOp: type=bool
-    And: type=i64
-    Name: type=i64
+    And: type=
+    Name: type=bool
     Load: type=<unknown>
-    Name: type=i64
+    Name: type=bool
     Load: type=<unknown>
     Compare: type=bool
     Name: type=Unknown
@@ -106,10 +106,10 @@ Function annotated_assignment:
     Return: type=i64
     IfExp: type=i64
     BoolOp: type=bool
-    And: type=i64
-    Name: type=i64
+    And: type=
+    Name: type=bool
     Load: type=<unknown>
-    Name: type=i64
+    Name: type=bool
     Load: type=<unknown>
     Compare: type=bool
     Name: type=Unknown
@@ -196,8 +196,8 @@ Function repeated_assign:
     Name: type=String
     Store: type=<unknown>
     Constant: type=&str
-    Return: type=Unknown
-    Name: type=Unknown
+    Return: type=String
+    Name: type=String
     Load: type=<unknown>
 
 Function pathological:
@@ -214,7 +214,7 @@ Function pathological:
     Store: type=<unknown>
     Name: type=&str
     Load: type=<unknown>
-    Return: type=Unknown
-    Name: type=Unknown
+    Return: type=String
+    Name: type=String
     Load: type=<unknown>
 

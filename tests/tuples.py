@@ -14,5 +14,5 @@ def use_returned_tuple(a: int, b: int) -> int:
 
 def tuple_in_args(a: Tuple[int, int]) -> int:
     if a[1] > a[0]:
-        a[0], a[1] = a[1], a[0]
+        a = a[1], a[0]
     return a[0] - a[1]

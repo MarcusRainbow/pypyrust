@@ -88,16 +88,16 @@ Function call_flow_of_control:
     Not: type=Unknown
     Name: type=Unknown
     Load: type=<unknown>
-    Return: type=Unknown
-    IfExp: type=Unknown
+    Return: type=i64
+    IfExp: type=i64
     Compare: type=bool
     Name: type=String
     Load: type=<unknown>
     Eq: type=String
     Constant: type=Unknown
-    Name: type=Unknown
+    Name: type=i64
     Load: type=<unknown>
-    Name: type=Unknown
+    Name: type=i64
     Load: type=<unknown>
 
 Function call_local:
