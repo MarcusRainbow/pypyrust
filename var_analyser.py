@@ -41,8 +41,9 @@ TYPE_MAPPING = {
 
 # Mapping from Python function name to Rust return type
 STANDARD_FUNCTION_RETURNS = {
-    "print": "()",
-    "range": "std::ops::Range"
+    "print": lambda args: "()",
+    "range": lambda args: f"[{args[0]}]",
+    "zip":   lambda args: f"[({', '.join(args)})]" 
 }
 
 CONTAINER_CONVERSIONS = {
@@ -86,9 +87,14 @@ def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) ->
     else:
         start, end = "<unknown>", "</unknown>"
 
-    types = [type_from_annotation(e, arg, container)
-        for e in annotation.slice.value.elts]
-    return f"{start}{', '.join(types)}{end}"
+    type_def = annotation.slice.value
+    if isinstance(type_def, ast.Name):
+        types = type_def.id
+    else:
+        type_str = [type_from_annotation(e, arg, container)
+            for e in annotation.slice.value.elts]
+        types = ', '.join(type_str)
+    return f"{start}{types}{end}"
 
 def container_type(arg_type: str) -> str:
     """
@@ -308,15 +314,18 @@ class VariableAnalyser(ast.NodeVisitor):
         """
         # recurse through the arguments
         prev = self.current_type
+        arg_types = []
         for a in node.args:
+            self.clear_type()
             self.visit(a)
+            arg_types.append(self.current_type)
         self.current_type = prev
 
         # a few functions are well-known (and in any case, they
         # do not behave properly with the below code)
         func_path = get_node_path(node.func)
         if func_path and len(func_path) == 1 and func_path[0] in STANDARD_FUNCTION_RETURNS:
-            self.set_type(STANDARD_FUNCTION_RETURNS[func_path[0]], node)
+            self.set_type(STANDARD_FUNCTION_RETURNS[func_path[0]](arg_types), node)
             return
 
         # Assume function names with no module are defined locally
@@ -486,14 +495,43 @@ class VariableAnalyser(ast.NodeVisitor):
         self.exit_scope(prev)
     
     def visit_For(self, node):
-        self.visit(node.target)
+        # the iterator should return some kind of container or iterator
+        # type over the type of the target, a kind of repeated assignment
+        self.clear_type()
         self.visit(node.iter)
+        typed = self.current_type[1:-1] # strip off the container/iterator bracket
+        self.handle_assignment(node.target, typed)
         prev = self.enter_scope()
         for line in node.body:
             self.clear_type()
             self.visit(line)
         self.exit_scope(prev)
     
+    def visit_ListComp(self, node):
+        for generator in node.generators:
+            self.clear_type()
+            self.visit(generator)
+        self.clear_type()
+        self.visit(node.elt)
+
+    def visit_comprehension(self, node):
+        # target, iter, ifs
+        self.clear_type()
+        self.visit(node.iter)
+        typed = self.current_type[1:-1] # strip off the container/iterator bracket
+        self.handle_assignment(node.target, typed)
+        
+        # if there are any if statements, enter into them
+        # to set their internal types, but the overall
+        # type returned by the comprehension is unaffected
+        prev_type = self.current_type
+        for i in node.ifs:
+            self.clear_type()
+            self.visit(i)
+        self.current_type = prev_type
+
+        # TODO: this leaves the type as a list. Convert it if needed
+
     def visit_Assign(self, node):
         self.clear_type()
         self.visit(node.value)
@@ -524,7 +562,8 @@ class VariableAnalyser(ast.NodeVisitor):
 
     def visit_AugAssign(self, node):
         # x += foo is the same as x = x + foo
-        typed = self.read_access(node.target)
+        typed = self.read_access(node.target.id)
+        self.set_type(typed, node.target)
         self.visit(node.value)
         self.handle_assignment(node.target, typed)
 
@@ -536,6 +575,10 @@ class TestTreePrinter(ast.NodeVisitor):
         typed = self.types[node] if node in self.types else "<unknown>"
         print(f"    {node.__class__.__name__}: type={typed}")
         super().generic_visit(node)
+
+    def visit_Name(self, node):
+        typed = self.types[node] if node in self.types else "<unknown>"
+        print(f"    Name({node.id}): type={typed}")
 
 class TestFunctionFinder(ast.NodeVisitor):
     """
@@ -598,3 +641,4 @@ if __name__ == "__main__":
     test_analyser("variables")
     test_analyser("function_calls")
     test_analyser("tuples")
+    test_analyser("lists")

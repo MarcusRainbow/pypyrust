@@ -1,0 +1,99 @@
+Function create_list:
+    Return: type=i64
+    ListComp: type=<unknown>
+    BinOp: type=i64
+    Name(x): type=i64
+    Mult: type=i64
+    Name(x): type=i64
+    comprehension: type=<unknown>
+    Name(x): type=i64
+    Call: type=[i64]
+    Name(range): type=<unknown>
+    Name(a): type=i64
+    Name(b): type=i64
+
+Function process_list:
+    Return: type=([int], [int])
+    ListComp: type=<unknown>
+    Tuple: type=([int], [int])
+    Name(x): type=[int]
+    Name(y): type=[int]
+    Load: type=<unknown>
+    comprehension: type=<unknown>
+    Tuple: type=<unknown>
+    Name(x): type=[int]
+    Name(y): type=[int]
+    Store: type=<unknown>
+    Call: type=[([int], [int])]
+    Name(zip): type=<unknown>
+    Name(a): type=[int]
+    Name(b): type=[int]
+
+Function add_mult_lists:
+    Assign: type=<unknown>
+    Name(d): type=[float]
+    BinOp: type=[float]
+    BinOp: type=[float]
+    Name(a): type=[float]
+    Add: type=[float]
+    Name(b): type=[float]
+    Mult: type=[float]
+    Name(c): type=[float]
+    Return: type=[float]
+    Name(d): type=[float]
+
+Function manual_iterator:
+    Assign: type=<unknown>
+    Name(sum): type=f64
+    Constant: type=f64
+    Assign: type=<unknown>
+    Name(prod): type=f64
+    Constant: type=f64
+    For: type=<unknown>
+    Name(i): type=float
+    Name(a): type=[float]
+    AugAssign: type=<unknown>
+    Name(sum): type=f64
+    Add: type=<unknown>
+    Subscript: type=Unknown
+    Name(a): type=[float]
+    Index: type=float
+    Name(i): type=float
+    Load: type=<unknown>
+    AugAssign: type=<unknown>
+    Name(prod): type=f64
+    Mult: type=<unknown>
+    Subscript: type=Unknown
+    Name(a): type=[float]
+    Index: type=float
+    Name(i): type=float
+    Load: type=<unknown>
+    Return: type=(f64, f64)
+    Tuple: type=(f64, f64)
+    Name(sum): type=f64
+    Name(prod): type=f64
+    Load: type=<unknown>
+
+Function manual_dot_product:
+    Assign: type=<unknown>
+    Name(sum): type=i64
+    Constant: type=i64
+    For: type=<unknown>
+    Tuple: type=<unknown>
+    Name(i): type=[float]
+    Name(j): type=[float]
+    Store: type=<unknown>
+    Call: type=[([float], [float])]
+    Name(zip): type=<unknown>
+    Name(a): type=[float]
+    Name(b): type=[float]
+    AugAssign: type=<unknown>
+    Name(sum): type=i64
+    Add: type=<unknown>
+    BinOp: type=Unknown
+    Name(i): type=Unknown
+    Mult: type=Unknown
+    Name(j): type=Unknown
+    Return: type=i64
+    Name(sum): type=i64
+
