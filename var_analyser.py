@@ -17,6 +17,8 @@ TYPE_COERCIONS = {
     ("f64", "bool"): "f64",
     ("i64", "f64"): "f64",
     ("f64", "i64"): "f64",
+    ("Vec<", "&["): "Vec<",
+    ("&[", "Vec<"): "Vec<",
 }
 
 UNKNOWN_TYPE = "Unknown"
@@ -43,12 +45,42 @@ TYPE_MAPPING = {
 STANDARD_FUNCTION_RETURNS = {
     "print": lambda args: "()",
     "range": lambda args: f"[{args[0]}]",
-    "zip":   lambda args: f"[({', '.join(args)})]" 
+    "zip":   lambda args: f"[({', '.join([ strip_container(x) for x in args ])})]" 
 }
 
 CONTAINER_CONVERSIONS = {
     "&str": ".to_string()"
 }
+
+MATCHING_BRACKETS = {
+    "(": ")", ")": "(",
+    "[": "]", "]": "[",
+    "{": "}", "}": "{",
+    "<": ">", ">": "<",
+}
+
+def strip_container(text: str) -> str:
+    return text[find_container(text): -1]
+
+def extract_container(text: str) -> str:
+    return text[0:find_container(text)]
+
+def find_container(text: str) -> int:
+    """
+    Finds the initial part of the string that represents the
+    container, and return a pointer to just after it.
+
+    If not found, returns zero
+    """
+    if len(text) < 2:
+        return 0
+    last = text[-1]
+    if last not in MATCHING_BRACKETS:
+        return 0
+    matching = MATCHING_BRACKETS[last]
+    if matching not in text:
+        return 0
+    return text.index(matching) + 1
 
 def type_from_annotation(annotation, arg: str, container: bool) -> str:
     if annotation is None:
@@ -81,20 +113,48 @@ def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) ->
     if container_type == "Tuple":
         start, end = "(", ")"
     elif container_type == "List":
-        start, end = "[", "]"
-    elif container_type == "Set":
-        start, end = "{", "}"
+        start, end = "&[", "]"
+    # elif container_type == "Set":
+    #     start, end = "&{", "}"
     else:
         start, end = "<unknown>", "</unknown>"
 
     type_def = annotation.slice.value
     if isinstance(type_def, ast.Name):
-        types = type_def.id
+        types = type_from_annotation(type_def, arg, container)
     else:
         type_str = [type_from_annotation(e, arg, container)
             for e in annotation.slice.value.elts]
         types = ', '.join(type_str)
     return f"{start}{types}{end}"
+
+def merge_types(current_type: str, typed: str) -> str:
+    if not typed:
+        return current_type
+    elif not current_type:
+        return typed
+    elif current_type == typed:
+        return current_type
+    elif (current_type, typed) in TYPE_COERCIONS:
+        return TYPE_COERCIONS[(current_type, typed)]
+
+    # if this is a container type and we are matching a container
+    curr_ctr = extract_container(current_type)
+    given_ctr = extract_container(typed)
+    if (curr_ctr, given_ctr) not in TYPE_COERCIONS:
+        return UNKNOWN_TYPE
+    
+    curr_subtypes = strip_container(current_type).split(", ")
+    given_subtypes = strip_container(typed).split(", ")
+    if len(curr_subtypes) != len(given_subtypes):
+        print("Warning: cannot merge subtypes of different lengths", file=sys.stderr)
+    subtypes = []
+    for curr, given in zip(curr_subtypes, given_subtypes):
+        subtypes.append(merge_types(curr, given))
+    
+    ctr = TYPE_COERCIONS[(curr_ctr, given_ctr)]
+    terminator = MATCHING_BRACKETS[ctr[-1]]
+    return ctr + ", ".join(subtypes) + terminator
 
 def container_type(arg_type: str) -> str:
     """
@@ -104,6 +164,8 @@ def container_type(arg_type: str) -> str:
     """
     if arg_type == "&str":
         return "String"
+    elif arg_type[-1] == "]":
+        return f"Vec<{strip_container(arg_type)}>"
     else:
         return arg_type
 
@@ -264,17 +326,7 @@ class VariableAnalyser(ast.NodeVisitor):
         Merges the given type into whatever type we have using
         standard coercion rules. E.g. int + float -> float
         """
-        if not typed:
-            pass    # ignore unknown types
-        elif not self.current_type:
-            self.current_type = typed
-        elif self.current_type == typed:
-            pass    # already right
-        elif (self.current_type, typed) in TYPE_COERCIONS:
-            self.current_type = TYPE_COERCIONS[(self.current_type, typed)]
-        else:
-            self.current_type = UNKNOWN_TYPE
-
+        self.current_type = merge_types(self.current_type, typed)
         self.type_by_node[node] = self.current_type
 
     def set_type_container(self, node):
@@ -409,7 +461,7 @@ class VariableAnalyser(ast.NodeVisitor):
         self.clear_type()
         self.visit(node.value)      # the name of the variable
 
-        types = self.current_type[1:-1].split(", ")
+        types = strip_container(self.current_type).split(", ")
         try:
             index = ast.literal_eval(node.slice)
         except:
@@ -499,7 +551,7 @@ class VariableAnalyser(ast.NodeVisitor):
         # type over the type of the target, a kind of repeated assignment
         self.clear_type()
         self.visit(node.iter)
-        typed = self.current_type[1:-1] # strip off the container/iterator bracket
+        typed = strip_container(self.current_type)
         self.handle_assignment(node.target, typed)
         prev = self.enter_scope()
         for line in node.body:
@@ -518,7 +570,7 @@ class VariableAnalyser(ast.NodeVisitor):
         # target, iter, ifs
         self.clear_type()
         self.visit(node.iter)
-        typed = self.current_type[1:-1] # strip off the container/iterator bracket
+        typed = strip_container(self.current_type)
         self.handle_assignment(node.target, typed)
         
         # if there are any if statements, enter into them
@@ -529,8 +581,6 @@ class VariableAnalyser(ast.NodeVisitor):
             self.clear_type()
             self.visit(i)
         self.current_type = prev_type
-
-        # TODO: this leaves the type as a list. Convert it if needed
 
     def visit_Assign(self, node):
         self.clear_type()
@@ -550,7 +600,7 @@ class VariableAnalyser(ast.NodeVisitor):
                 print("Warning: cannot assign tuple from non-tuple", file=sys.stderr)
                 return
             
-            subtypes = typed[1:-1].split(", ")
+            subtypes = strip_container(typed).split(", ")
             for e, subtype in zip(target.elts, subtypes):
                 self.handle_assignment(e, subtype)
 

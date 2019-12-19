@@ -42,6 +42,25 @@ OPERATOR_PRECEDENCE = {
     "Or": 1,
 }
 
+def target_as_string(node) -> str:
+    """
+    Given a node that is either a Tuple or a Name, return
+    a representation as a string
+    """
+    if isinstance(node, ast.Name):
+        return node.id
+    elif isinstance(node, ast.Tuple):
+        result = "("
+        separator = ""
+        for element in node.elts:
+            result += separator
+            result += target_as_string(element)
+            separator = ", "
+        result += ")"
+        return result
+    else:
+        raise Exception("We only support tuples and names as the target of comprehensions")
+
 # One bigger than any actual precedence. Use this to force parentheses
 MAX_PRECEDENCE = 13  
 class RustGenerator(ast.NodeVisitor):
@@ -59,6 +78,7 @@ class RustGenerator(ast.NodeVisitor):
         self.variables = set()
         self.mutable_vars = set()
         self.type_by_node = {}
+        self.target = ""
 
     def pretty(self):
         return '    ' * self.indent
@@ -600,6 +620,64 @@ class RustGenerator(ast.NodeVisitor):
     def visit_Continue(self, node):
         print(f"{self.pretty()}continue;")
 
+    def visit_ListComp(self, node):
+        """
+        A list comprehension in Rust can be achieved using the macros
+        defined in the *cute* crate, but this ends up producing non-
+        standard Rust source. We stay more mainstream and render
+        comprehensions as follows:
+
+        l = [foo(x) for x in range(100) if bar(x)]
+
+        let l = (0..100).filter(|x| bar(x)).map(|x| foo(x)).collect::<Vec<_>>();
+
+        We leave the more unusual case of more than one generator as
+        an exercise...
+        """
+        if len(node.generators) != 1:
+            print("Warning: comprehensions with more than one generator not supported")
+
+        # writes (0..100).filter(|x| bar(x))
+        for generator in node.generators:
+            self.visit(generator)
+
+        # shortcut if elt is just a variable name, otherwise need a map
+        if not isinstance(node.elt, ast.Name):
+            print(f".map({self.target}| ", end='')
+            self.visit(node.elt)
+
+        # finally, generate a List (actually a Rust Vec)
+        print(".collect::<Vec<_>>()", end='')
+
+    def visit_comprehension(self, node):
+        """
+        A comprehension in Rust is rendered as a generator as
+        follows:
+
+            l = [foo(x) for x in range(100) if bar(x)]
+        
+        the generator is
+
+            for x in range(100) if bar(x)
+
+        in Rust, this is
+
+            (0..100).filter(|x| bar(x))
+        """
+
+        # first find out the target. This is either a variable
+        # (Name) or a Tuple.
+        self.target = target_as_string(node.target)
+
+        # iterator e.g. (0..100)
+        self.visit(node.iter)    # (0..100)
+
+        # if statements e.g. .filter(|x| bar(x))
+        for i in node.ifs:
+            print(f".filter(|{self.target} ", end='')
+            self.visit(i)
+            print(")", end='')
+
     def visit_Assign(self, node):
         """
         Variable assignment statement, such as x = y = 42
@@ -738,4 +816,5 @@ if __name__ == "__main__":
     test_compiler("variables")
     test_compiler("function_calls")
     test_compiler("tuples")
+    test_compiler("lists")
 
