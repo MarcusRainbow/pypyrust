@@ -14,12 +14,12 @@ def manual_iterator(a: List[float]) -> Tuple[float, float]:
     sum = 0.0
     prod = 1.0
     for i in a:
-        sum += a[i]
-        prod *= a[i]
+        sum += i
+        prod *= i
     return sum, prod
 
 def manual_dot_product(a: List[float], b: List[float]) -> float:
-    sum = 0
+    sum = 0.0
     for i, j in zip(a, b):
         sum += i * j
     return sum

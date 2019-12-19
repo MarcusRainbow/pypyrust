@@ -109,12 +109,12 @@ def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) ->
     """
     Return a type that is a Tuple, List, Dictionary, Set
     """
-    container_type = annotation.value.id
-    if container_type == "Tuple":
+    outer_type = annotation.value.id
+    if outer_type == "Tuple":
         start, end = "(", ")"
-    elif container_type == "List":
+    elif outer_type == "List":
         start, end = "&[", "]"
-    # elif container_type == "Set":
+    # elif outer_type == "Set":
     #     start, end = "&{", "}"
     else:
         start, end = "<unknown>", "</unknown>"
@@ -126,7 +126,9 @@ def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) ->
         type_str = [type_from_annotation(e, arg, container)
             for e in annotation.slice.value.elts]
         types = ', '.join(type_str)
-    return f"{start}{types}{end}"
+    
+    result = f"{start}{types}{end}"
+    return container_type(result) if container else result
 
 def merge_types(current_type: str, typed: str) -> str:
     if not typed:

@@ -55,19 +55,11 @@ Function manual_iterator:
     AugAssign: type=<unknown>
     Name(sum): type=f64
     Add: type=<unknown>
-    Subscript: type=f64
-    Name(a): type=&[f64]
-    Index: type=f64
     Name(i): type=f64
-    Load: type=<unknown>
     AugAssign: type=<unknown>
     Name(prod): type=f64
     Mult: type=<unknown>
-    Subscript: type=f64
-    Name(a): type=&[f64]
-    Index: type=f64
     Name(i): type=f64
-    Load: type=<unknown>
     Return: type=(f64, f64)
     Tuple: type=(f64, f64)
     Name(sum): type=f64
@@ -76,8 +68,8 @@ Function manual_iterator:
 
 Function manual_dot_product:
     Assign: type=<unknown>
-    Name(sum): type=i64
-    Constant: type=i64
+    Name(sum): type=f64
+    Constant: type=f64
     For: type=<unknown>
     Tuple: type=<unknown>
     Name(i): type=f64
@@ -88,12 +80,12 @@ Function manual_dot_product:
     Name(a): type=&[f64]
     Name(b): type=&[f64]
     AugAssign: type=<unknown>
-    Name(sum): type=i64
+    Name(sum): type=f64
     Add: type=<unknown>
     BinOp: type=f64
     Name(i): type=f64
     Mult: type=f64
     Name(j): type=f64
-    Return: type=i64
-    Name(sum): type=i64
+    Return: type=f64
+    Name(sum): type=f64
 

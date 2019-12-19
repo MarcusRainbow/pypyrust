@@ -336,14 +336,20 @@ class RustGenerator(ast.NodeVisitor):
         2. range(a, b)      ->      a..b
         3. range(a, b, c)   ->      (a..b).step_by(c)
         """
+        want_paren = self.precedence > 0
+
         n = len(node.args)
         if n == 1:
+            if want_paren: print("(", end='')
             print("0..", end='')
             self.visit(node.args[0])
+            if want_paren: print(")", end='')
         elif n == 2:
+            if want_paren: print("(", end='')
             self.visit(node.args[0])
             print("..", end='')
             self.visit(node.args[1])
+            if want_paren: print(")", end='')
         elif n == 3:
             print("(")
             self.visit(node.args[0])
@@ -643,8 +649,9 @@ class RustGenerator(ast.NodeVisitor):
 
         # shortcut if elt is just a variable name, otherwise need a map
         if not isinstance(node.elt, ast.Name):
-            print(f".map({self.target}| ", end='')
+            print(f".map(|{self.target}| ", end='')
             self.visit(node.elt)
+            print(")", end='')
 
         # finally, generate a List (actually a Rust Vec)
         print(".collect::<Vec<_>>()", end='')
@@ -670,6 +677,7 @@ class RustGenerator(ast.NodeVisitor):
         self.target = target_as_string(node.target)
 
         # iterator e.g. (0..100)
+        self.precedence = MAX_PRECEDENCE * 2
         self.visit(node.iter)    # (0..100)
 
         # if statements e.g. .filter(|x| bar(x))
