@@ -3,7 +3,7 @@ from typing import List, Tuple
 def create_list(a: int, b: int) -> List[int]:
     return [x * x for x in range(a, b)]
 
-def process_list(a: List[int], b: List[int]) -> List[int]:
+def process_list(a: List[int], b: List[int]) -> List[Tuple[int, int]]:
     return [(x, y) for x, y in zip(a, b)]
 
 def add_mult_lists(a: List[float], b: List[float], c: List[float]) -> List[float]:

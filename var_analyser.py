@@ -122,10 +122,12 @@ def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) ->
     type_def = annotation.slice.value
     if isinstance(type_def, ast.Name):
         types = type_from_annotation(type_def, arg, container)
-    else:
+    elif isinstance(type_def, ast.Tuple):
         type_str = [type_from_annotation(e, arg, container)
-            for e in annotation.slice.value.elts]
+            for e in type_def.elts]
         types = ', '.join(type_str)
+    elif isinstance(type_def, ast.Subscript):
+        types = type_from_annotation(type_def, arg, container)
     
     result = f"{start}{types}{end}"
     return container_type(result) if container else result

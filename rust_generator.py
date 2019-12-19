@@ -51,11 +51,11 @@ def target_as_string(node) -> str:
         return node.id
     elif isinstance(node, ast.Tuple):
         result = "("
-        separator = ""
+        separator = "&"         # iterator returns references. Convert these to values
         for element in node.elts:
             result += separator
             result += target_as_string(element)
-            separator = ", "
+            separator = ", &"
         result += ")"
         return result
     else:
@@ -254,6 +254,8 @@ class RustGenerator(ast.NodeVisitor):
                 return self.visit_Print(node)
             elif node_path[0] == "range":
                 return self.visit_Range(node)
+            elif node_path[0] == "zip":
+                return self.visit_Zip(node)
 
         # Function name, with namespacing if required. Note that if
         # any namespacing is required, we first need an initial
@@ -358,6 +360,27 @@ class RustGenerator(ast.NodeVisitor):
             print(").step_by(")
             self.visit(node.args[2])
             print(")")
+
+    def visit_Zip(self, node):
+        """
+        Not part of the standard visitor pattern, but internally
+        special-cased, because Rust's zip function is a method
+        on an iterator, rather than a global function.
+
+        We also need to force the iterator to be an iterator with
+        an "iter" method, as the normal rules you'd get in a for
+        loop do not apply.
+        """
+        # Really hard to handle more than two args to a zip in
+        # Rust, though there are third party libraries that do.
+        if len(node.args) != 2:
+            raise Exception("We currently only handle zip with two args")
+
+        self.precedence = MAX_PRECEDENCE * 2    # make sure we put brackets if needed
+        self.visit(node.args[0])
+        print(".iter().zip(", end='')
+        self.visit(node.args[1])
+        print(".iter())", end='')
 
     def visit_Name(self, node):
         print(f"{node.id}", end='')
