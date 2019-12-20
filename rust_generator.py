@@ -7,9 +7,9 @@ import sys
 from enum import Enum
 import filecmp
 import os
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
-    type_from_annotation, container_type_needed, get_node_path
+    type_from_annotation, container_type_needed, get_node_path, is_list
 
 OPEN_BRACE = '{'
 CLOSE_BRACE = '}'
@@ -79,6 +79,7 @@ class RustGenerator(ast.NodeVisitor):
         self.mutable_vars = set()
         self.type_by_node = {}
         self.target = ""
+        self.unpacking = False
 
     def pretty(self):
         return '    ' * self.indent
@@ -185,6 +186,37 @@ class RustGenerator(ast.NodeVisitor):
             # unrecognised type. Add a warning and continue
             print("Warning: unrecognised variable type", file=sys.stderr)
             return True, False, True
+
+    def unpack_lists(self, node) -> List[str]:
+        """
+        Is this a binary operator that we want to unpack, as its
+        operands are lists? If so, return a list of all the
+        operand variables that are lists, including those that are
+        included indirectly, as operands of operands.
+        """
+        if self.unpacking:
+            return None     # do not recurse
+
+        elif not is_list(self.type_by_node[node]):
+            return None     # not a list
+        
+        elif isinstance(node, ast.Name) and node.id in self.variables:
+            # found a variable which is a list
+            return [node.id]
+
+        elif isinstance(node, ast.BinOp):
+            left = self.unpack_lists(node.left)
+            right = self.unpack_lists(node.right)
+            result = []
+            if left:
+                result.extend(left)
+            if right:
+                result.extend(right)
+            return result
+        
+        else:
+            print("Warning: unhandled subnode of binary operator on lists", file=sys.stderr)
+            return None
 
     def visit_FunctionDef(self, node):
         # Analyse the variables in this function to see which need
@@ -423,6 +455,35 @@ class RustGenerator(ast.NodeVisitor):
             print("]", end='')
 
     def visit_BinOp(self, node):
+        # There needs to be special handling for Lists.
+        # Python treats A o B as element-wise operator o
+        # applied to every matching element in A and B.
+        # Rust requires this to be explicit.
+        #
+        # e.g. python expression (a + b) * c turns into
+        #
+        # a.iter().zip(b.iter().zip(c.iter())).map(|(a,(b, c))|
+        #     (a + b) * c
+        #     ).collect::<Vec<_>>();
+        #
+        unpack = self.unpack_lists(node)
+        if unpack:
+            for i, var in enumerate(unpack):
+                if i > 0:
+                    print(".zip(", end='')
+                print(f"{var}.iter()", end='')
+            print(")" * i, end='')
+            print(".map(|(", end='')
+            for i, var in enumerate(unpack):
+                if i > 0:
+                    print(",(", end='')
+                print(var, end='')
+            print(")" * i, end='')
+            print("|")
+            self.add_pretty(1)
+            print(self.pretty(), end='')
+            self.unpacking = True
+
         # some binary operators such as '+' translate
         # into binary operators in Rust. However, pow needs
         # special handling.
@@ -431,6 +492,13 @@ class RustGenerator(ast.NodeVisitor):
             self.visit_PowOp(node)
         else:
             self.parens_if_needed(op, lambda: self.do_visit_BinOp(node))
+
+        # close the list special handling if needed
+        if unpack:
+            print()
+            print(f"{self.pretty()}).collect::<Vec<_>>()", end='')
+            self.add_pretty(-1)
+            self.unpacking = False
     
     def do_visit_BinOp(self, node):
         self.visit(node.left)

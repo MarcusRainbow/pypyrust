@@ -82,6 +82,12 @@ def find_container(text: str) -> int:
         return 0
     return text.index(matching) + 1
 
+def is_list(text: str) -> bool:
+    """
+    Does the given type represent a list?
+    """
+    return text[-1] == "]" or text[:4] == "Vec<"
+
 def type_from_annotation(annotation, arg: str, container: bool) -> str:
     if annotation is None:
         print(f"missing type annotation for argument '{arg}'", file=sys.stderr)
