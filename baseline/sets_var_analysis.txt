@@ -1,0 +1,38 @@
+Function create_set:
+    Return: type=HashSet<i64>
+    SetComp: type=HashSet<i64>
+    Name(i): type=i64
+    comprehension: type=<unknown>
+    Name(i): type=i64
+    Call: type=[i64]
+    Name(range): type=<unknown>
+    Name(a): type=i64
+    Name(b): type=i64
+
+Function set_check_and_add:
+    If: type=<unknown>
+    Compare: type=bool
+    Name(item): type=&str
+    In: type=<unknown>
+    Name(a): type=HashSet<&str>
+    Return: type=bool
+    Constant: type=bool
+    Expr: type=HashSet<&str>
+    Call: type=<unknown>
+    Attribute: type=HashSet<&str>
+    Name(a): type=HashSet<&str>
+    Load: type=HashSet<&str>
+    Name(item): type=&str
+    Return: type=bool
+    Constant: type=bool
+
+Function create_static_set:
+    Assign: type=<unknown>
+    Name(a): type=HashSet<&str>
+    Set: type=HashSet<&str>
+    Constant: type=&str
+    Constant: type=&str
+    Constant: type=&str
+    Return: type=HashSet<&str>
+    Name(a): type=HashSet<&str>
+

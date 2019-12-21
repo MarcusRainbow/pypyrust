@@ -38,7 +38,7 @@ Function assignment:
     Name(e): type=bool
     Compare: type=bool
     Name(f): type=Unknown
-    Eq: type=Unknown
+    Eq: type=<unknown>
     Constant: type=Unknown
     BinOp: type=i64
     BinOp: type=i64
@@ -77,7 +77,7 @@ Function annotated_assignment:
     Name(f): type=bool
     Compare: type=bool
     Name(g): type=Unknown
-    Eq: type=Unknown
+    Eq: type=<unknown>
     Constant: type=Unknown
     BinOp: type=i64
     Name(e): type=i64
@@ -122,7 +122,7 @@ Function repeated_assign:
     If: type=<unknown>
     Compare: type=bool
     Name(a): type=&str
-    NotEq: type=&str
+    NotEq: type=<unknown>
     Name(b): type=&str
     Assign: type=<unknown>
     Name(c): type=String
@@ -130,7 +130,7 @@ Function repeated_assign:
     If: type=<unknown>
     Compare: type=bool
     Name(b): type=&str
-    Eq: type=&str
+    Eq: type=<unknown>
     Name(a): type=&str
     Assign: type=<unknown>
     Name(c): type=String

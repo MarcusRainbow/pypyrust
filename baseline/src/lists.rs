@@ -31,3 +31,13 @@ pub fn manual_dot_product(a: &[f64], b: &[f64]) -> f64 {
     return sum;
 }
 
+pub fn static_lists(a: i64) -> bool {
+    let odd = [
+        1,
+        3,
+        5,
+        7,
+        ];
+    return odd.contains(a);
+}
+

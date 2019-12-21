@@ -65,6 +65,13 @@ def strip_container(text: str) -> str:
 def extract_container(text: str) -> str:
     return text[0:find_container(text)]
 
+def detemplatise(text: str) -> str:
+    if "<" not in text or ">" not in text:
+        return text
+    left = text.index("<")
+    right = text.rfind(">")
+    return f"{text[:left]}<_>{text[right + 1:]}"
+
 def find_container(text: str) -> int:
     """
     Finds the initial part of the string that represents the
@@ -120,8 +127,8 @@ def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) ->
         start, end = "(", ")"
     elif outer_type == "List":
         start, end = "&[", "]"
-    # elif outer_type == "Set":
-    #     start, end = "&{", "}"
+    elif outer_type == "Set":
+        start, end = "HashSet<", ">"
     else:
         start, end = "<unknown>", "</unknown>"
 
@@ -398,6 +405,13 @@ class VariableAnalyser(ast.NodeVisitor):
             else:
                 self.set_type(self.return_types[func_path[0]], node)
 
+        # If the first part of the path is a known variable, then this is
+        # a method call on that variable. Ignore for now, apart from setting
+        # the type of the variable
+        if func_path[0] in self.vars:
+            self.visit(node.func)
+            return
+
         # We currently only handle module.func_name
         if len(func_path) != 2:
             return
@@ -456,6 +470,24 @@ class VariableAnalyser(ast.NodeVisitor):
         self.clear_type()
         type_string = f"({', '.join(types)})"
         self.set_type(type_string, node)
+
+    def visit_List(self, node):
+        old_type = self.current_type
+        self.clear_type()
+        for element in node.elts:
+            self.visit(element)
+        new_type = self.current_type
+        self.current_type = old_type
+        self.set_type(f"&[{new_type}]", node)
+
+    def visit_Set(self, node):
+        old_type = self.current_type
+        self.clear_type()
+        for element in node.elts:
+            self.visit(element)
+        new_type = self.current_type
+        self.current_type = old_type
+        self.set_type(f"HashSet<{new_type}>", node)
 
     def visit_Subscript(self, node):
         """
@@ -517,7 +549,11 @@ class VariableAnalyser(ast.NodeVisitor):
     def visit_Compare(self, node):
         # the result of a comparison is always a bool, regardless of
         # the contained values
-        self.generic_visit(node)
+        self.visit(node.left)
+        for op, comparator in zip(node.ops, node.comparators):
+            if isinstance(op, ast.In):
+                self.clear_type()   # types each side of "in" are unrelated
+            self.visit(comparator)
         self.clear_type()
         self.set_type("bool", node)
 
@@ -575,6 +611,19 @@ class VariableAnalyser(ast.NodeVisitor):
             self.visit(generator)
         self.clear_type()
         self.visit(node.elt)
+        typed = self.current_type
+        self.clear_type()
+        self.set_type(f"&[{typed}]", node)
+
+    def visit_SetComp(self, node):
+        for generator in node.generators:
+            self.clear_type()
+            self.visit(generator)
+        self.clear_type()
+        self.visit(node.elt)
+        typed = self.current_type
+        self.clear_type()
+        self.set_type(f"HashSet<{typed}>", node)
 
     def visit_comprehension(self, node):
         # target, iter, ifs
@@ -702,3 +751,4 @@ if __name__ == "__main__":
     test_analyser("function_calls")
     test_analyser("tuples")
     test_analyser("lists")
+    test_analyser("sets")

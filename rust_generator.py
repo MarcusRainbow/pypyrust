@@ -9,7 +9,8 @@ import filecmp
 import os
 from typing import Dict, Tuple, List
 from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
-    type_from_annotation, container_type_needed, get_node_path, is_list
+    type_from_annotation, container_type_needed, get_node_path, is_list, \
+    detemplatise
 
 OPEN_BRACE = '{'
 CLOSE_BRACE = '}'
@@ -17,6 +18,10 @@ CLOSE_BRACE = '}'
 #     "Mod", "LShift", "RShift", "BitOr", "BitXor", "BitAnd" }
 
 ALLOWED_COMPARISON_OPERATORS = { "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE" }
+
+STANDARD_METHODS = {
+    ("HashSet<_>", "add"): "insert"
+}
 
 REPLACE_CONSTANTS = {
     True : "true",
@@ -289,13 +294,29 @@ class RustGenerator(ast.NodeVisitor):
             elif node_path[0] == "zip":
                 return self.visit_Zip(node)
 
+        # identify method calls, where the first item is a known variable
+        is_method = len(node_path) > 1 and node_path[0] in self.variables
+
         # Function name, with namespacing if required. Note that if
         # any namespacing is required, we first need an initial
         # :: so we start from the global namespace.
-        separator = "::" if len(node_path) > 1 else ""
+        if len(node_path) > 1 and not is_method:
+            print("::", end='')
+        
+        # may be some fancy footwork if this is a method on a standard type
+        if is_method and node.func in self.type_by_node:
+            func_type = self.type_by_node[node.func]
+            method = (detemplatise(func_type), node_path[1])
+            if method in STANDARD_METHODS:
+                node_path[1] = STANDARD_METHODS[method]
+
+        separator = "." if is_method else "::"
+        first = True
         for name in node_path:
-            print(separator, end='')
+            if not first:
+                print(separator, end='')
             print(name, end='')
+            first = False
 
         print("(", end='')
         sep = ""
@@ -437,6 +458,37 @@ class RustGenerator(ast.NodeVisitor):
             self.visit(element)
             separator = ", "
         print(")", end='')
+
+    def visit_List(self, node):
+        print("[", end='')
+        
+        # special-case empty or short lists for prettiness
+        short = len(node.elts) < 3
+        if not short:
+            print()
+            self.add_pretty(1)
+            print(self.pretty(), end='')
+
+        first = True
+        for element in node.elts:
+            if short and not first:
+                print(", ", end='')
+            self.visit(element)
+            first = False
+            if not short:
+                print(",")
+                print(self.pretty(), end='')
+        
+        print("]", end='')
+        if not short:
+            self.add_pretty(-1)
+
+    def visit_Set(self, node):
+        # first construct a list
+        self.visit_List(node)
+
+        # then convert it to a HashSet
+        print(".iter().cloned().collect::<HashSet<_>>()", end='')        
 
     def visit_Subscript(self, node):
         """
@@ -624,6 +676,16 @@ class RustGenerator(ast.NodeVisitor):
         """
         op_len = len(node.ops)
         assert(op_len == len(node.comparators))
+        assert(op_len > 0)
+
+        # in and is are special cases
+        if isinstance(node.ops[0], ast.In):
+            self.visit_In_Compare(node)
+            return
+        elif isinstance(node.ops[0], ast.Is):
+            self.visit_Is_Compare(node)
+            return
+
         if op_len > 1:
             print("(", end='')
 
@@ -639,6 +701,34 @@ class RustGenerator(ast.NodeVisitor):
                     self.visit(c)
                 else:
                     print(")", end='')
+
+    def visit_Is_Compare(self, node):
+        """
+        Not part of the visitor pattern, but we special-case
+        this from visit_Compare for an "is" operator.
+        """
+        assert(len(node.ops) == 1)
+        assert(len(node.comparators) == 1)
+
+        self.precedence = MAX_PRECEDENCE * 2    # "as" binds tightly in Rust
+        self.visit(node.left)
+        print(" as *const _ == ", end='')
+        self.visit(node.comparators[0])
+        print(" as *const _", end='')
+
+    def visit_In_Compare(self, node):
+        """
+        Not part of the visitor pattern, but we special-case
+        this from visit_Compare for an "in" operator.
+        """
+        assert(len(node.ops) == 1)
+        assert(len(node.comparators) == 1)
+
+        self.visit(node.comparators[0])
+        print(".contains(", end='')
+        self.precedence = 0
+        self.visit(node.left)
+        print(")", end='')
 
     def visit_Eq(self, node):
         print(" == ", end='')
@@ -731,6 +821,18 @@ class RustGenerator(ast.NodeVisitor):
         We leave the more unusual case of more than one generator as
         an exercise...
         """
+        self.do_visit_Comprehension(node)
+        print(".collect::<Vec<_>>()", end='')
+
+    def visit_SetComp(self, node):
+        self.do_visit_Comprehension(node)
+        print(".collect::<HashSet<_>>()", end='')
+
+    def do_visit_Comprehension(self, node):
+        """
+        Helper function for comprehensions. Does all the work apart 
+        from the final collection into the desired type.
+        """
         if len(node.generators) != 1:
             print("Warning: comprehensions with more than one generator not supported")
 
@@ -743,9 +845,6 @@ class RustGenerator(ast.NodeVisitor):
             print(f".map(|{self.target}| ", end='')
             self.visit(node.elt)
             print(")", end='')
-
-        # finally, generate a List (actually a Rust Vec)
-        print(".collect::<Vec<_>>()", end='')
 
     def visit_comprehension(self, node):
         """
@@ -916,4 +1015,5 @@ if __name__ == "__main__":
     test_compiler("function_calls")
     test_compiler("tuples")
     test_compiler("lists")
+    test_compiler("sets")
 

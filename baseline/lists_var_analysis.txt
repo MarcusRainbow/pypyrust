@@ -1,6 +1,6 @@
 Function create_list:
-    Return: type=i64
-    ListComp: type=<unknown>
+    Return: type=Vec<i64>
+    ListComp: type=&[i64]
     BinOp: type=i64
     Name(x): type=i64
     Mult: type=i64
@@ -13,8 +13,8 @@ Function create_list:
     Name(b): type=i64
 
 Function process_list:
-    Return: type=(i64, i64)
-    ListComp: type=<unknown>
+    Return: type=Vec<(i64, i64)>
+    ListComp: type=&[(i64, i64)]
     Tuple: type=(i64, i64)
     Name(x): type=i64
     Name(y): type=i64
@@ -88,4 +88,19 @@ Function manual_dot_product:
     Name(j): type=f64
     Return: type=f64
     Name(sum): type=f64
+
+Function static_lists:
+    Assign: type=<unknown>
+    Name(odd): type=Vec<i64>
+    List: type=&[i64]
+    Constant: type=i64
+    Constant: type=i64
+    Constant: type=i64
+    Constant: type=i64
+    Load: type=<unknown>
+    Return: type=bool
+    Compare: type=bool
+    Name(a): type=i64
+    In: type=<unknown>
+    Name(odd): type=Vec<i64>
 

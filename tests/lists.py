@@ -24,3 +24,6 @@ def manual_dot_product(a: List[float], b: List[float]) -> float:
         sum += i * j
     return sum
     
+def static_lists(a: int) -> bool:
+    odd = [1, 3, 5, 7]
+    return a in odd

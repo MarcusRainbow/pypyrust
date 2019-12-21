@@ -2,7 +2,7 @@ Function use_tuple_for_swap:
     If: type=<unknown>
     Compare: type=bool
     Name(b): type=i64
-    Gt: type=i64
+    Gt: type=<unknown>
     Name(a): type=i64
     Assign: type=<unknown>
     Tuple: type=<unknown>
@@ -50,7 +50,7 @@ Function tuple_in_args:
     Index: type=i64
     Constant: type=i64
     Load: type=<unknown>
-    Gt: type=i64
+    Gt: type=<unknown>
     Subscript: type=i64
     Name(a): type=(i64, i64)
     Index: type=i64

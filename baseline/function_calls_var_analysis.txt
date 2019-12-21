@@ -65,7 +65,7 @@ Function call_flow_of_control:
     IfExp: type=i64
     Compare: type=bool
     Name(e): type=String
-    Eq: type=String
+    Eq: type=<unknown>
     Constant: type=Unknown
     Name(c): type=i64
     Name(d): type=i64
@@ -74,7 +74,7 @@ Function call_local:
     If: type=<unknown>
     Compare: type=bool
     Name(a): type=i64
-    Gt: type=i64
+    Gt: type=<unknown>
     Constant: type=i64
     Return: type=i64
     Call: type=i64
