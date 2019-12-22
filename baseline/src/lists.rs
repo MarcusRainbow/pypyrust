@@ -7,7 +7,7 @@ pub fn process_list(a: &[i64], b: &[i64]) -> Vec<(i64, i64)> {
 }
 
 pub fn add_mult_lists(a: &[f64], b: &[f64], c: &[f64]) -> Vec<f64> {
-    let d = a.iter().zip(b.iter().zip(c.iter())).map(|(a,(b,(c))|
+    let d = a.iter().zip(b.iter().zip(c.iter())).map(|(a,(b, c))|
         (a + b) * c
         ).collect::<Vec<_>>();
     return d;

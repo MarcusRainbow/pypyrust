@@ -490,6 +490,35 @@ class RustGenerator(ast.NodeVisitor):
         # then convert it to a HashSet
         print(".iter().cloned().collect::<HashSet<_>>()", end='')        
 
+    def visit_Dict(self, node):
+        print("[", end='')
+        
+        # special-case empty or short lists for prettiness
+        short = len(node.values) < 3
+        if not short:
+            print()
+            self.add_pretty(1)
+            print(self.pretty(), end='')
+
+        first = True
+        for key, value in zip(node.keys, node.values):
+            if short and not first:
+                print(", ", end='')
+            print("(", end='')
+            self.visit(key)
+            print(", ", end='')
+            self.visit(value)
+            print(")", end='')
+            first = False
+            if not short:
+                print(",")
+                print(self.pretty(), end='')
+        
+        print("].iter().cloned().collect::<HashMap<_>>()", end='')        
+
+        if not short:
+            self.add_pretty(-1)
+
     def visit_Subscript(self, node):
         """
         Subscript is used in Python for both lists and tuples. However, the
@@ -526,8 +555,11 @@ class RustGenerator(ast.NodeVisitor):
                 print(f"{var}.iter()", end='')
             print(")" * i, end='')
             print(".map(|(", end='')
+            n = len(unpack)
             for i, var in enumerate(unpack):
-                if i > 0:
+                if i == n - 1:
+                    print(", ", end='')
+                elif i > 0:
                     print(",(", end='')
                 print(var, end='')
             print(")" * i, end='')
@@ -682,8 +714,15 @@ class RustGenerator(ast.NodeVisitor):
         if isinstance(node.ops[0], ast.In):
             self.visit_In_Compare(node)
             return
+        if isinstance(node.ops[0], ast.NotIn):
+            print("!", end='')
+            self.visit_In_Compare(node)
+            return
         elif isinstance(node.ops[0], ast.Is):
-            self.visit_Is_Compare(node)
+            self.visit_Is_Compare(node, "==")
+            return
+        elif isinstance(node.ops[0], ast.IsNot):
+            self.visit_Is_Compare(node, "!=")
             return
 
         if op_len > 1:
@@ -691,8 +730,9 @@ class RustGenerator(ast.NodeVisitor):
 
         self.visit(node.left)
         for op, c, i in zip(node.ops, node.comparators, range(op_len)):
-            # we do not yet handle is or in
-            assert(op.__class__.__name__ in ALLOWED_COMPARISON_OPERATORS)
+            op_name = op.__class__.__name__
+            if op_name not in ALLOWED_COMPARISON_OPERATORS:
+                print(f"Warning: {op_name} is not an operator", file=sys.stderr)
             self.visit(op)
             self.visit(c)
             if op_len > 1:
@@ -702,7 +742,7 @@ class RustGenerator(ast.NodeVisitor):
                 else:
                     print(")", end='')
 
-    def visit_Is_Compare(self, node):
+    def visit_Is_Compare(self, node, op: str):
         """
         Not part of the visitor pattern, but we special-case
         this from visit_Compare for an "is" operator.
@@ -712,7 +752,7 @@ class RustGenerator(ast.NodeVisitor):
 
         self.precedence = MAX_PRECEDENCE * 2    # "as" binds tightly in Rust
         self.visit(node.left)
-        print(" as *const _ == ", end='')
+        print(f" as *const _ {op} ", end='')
         self.visit(node.comparators[0])
         print(" as *const _", end='')
 
@@ -828,6 +868,23 @@ class RustGenerator(ast.NodeVisitor):
         self.do_visit_Comprehension(node)
         print(".collect::<HashSet<_>>()", end='')
 
+    def visit_DictComp(self, node):
+        first = True
+        for generator in node.generators:
+            if not first:
+                print(", ", end='')
+            self.visit(generator)
+            first = False
+
+        # shortcut if key and value are just a variable name, otherwise need a map
+        if not isinstance(node.key, ast.Name) or not isinstance(node.value, ast.Name):
+            print(f".map(|{self.target}| (", end='')
+            self.visit(node.key)
+            print(", ", end='')
+            self.visit(node.value)
+            print("))", end='')
+        print(".collect::<HashMap<_>>()", end='')
+
     def do_visit_Comprehension(self, node):
         """
         Helper function for comprehensions. Does all the work apart 
@@ -875,6 +932,22 @@ class RustGenerator(ast.NodeVisitor):
             print(f".filter(|{self.target} ", end='')
             self.visit(i)
             print(")", end='')
+
+    def visit_Assert(self, node):
+        print(f"{self.pretty()}assert!(", end='')
+        self.visit(node.test)
+        if node.msg:
+            print(", ", end='')
+            self.visit(node.msg)
+        print(");")
+    
+    def visit_Delete(self, node):
+        print("Warning: del not yet supported", file=sys.stderr)
+        print(f"{self.pretty()}// TODO DELETE:", end='')
+        for t in node.targets:
+            print(" ", end='')
+            self.visit(t)
+        print()
 
     def visit_Assign(self, node):
         """
@@ -1016,4 +1089,5 @@ if __name__ == "__main__":
     test_compiler("tuples")
     test_compiler("lists")
     test_compiler("sets")
+    test_compiler("dictionaries")
 

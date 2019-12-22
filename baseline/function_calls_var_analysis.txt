@@ -48,7 +48,7 @@ Function call_flow_of_control:
     Load: type=<unknown>
     Name(a): type=bool
     UnaryOp: type=bool
-    Not: type=
+    Not: type=bool
     Name(a): type=bool
     Constant: type=&str
     Constant: type=&str
@@ -59,14 +59,14 @@ Function call_flow_of_control:
     Load: type=<unknown>
     Name(a): type=bool
     UnaryOp: type=bool
-    Not: type=
+    Not: type=bool
     Name(a): type=bool
     Return: type=i64
     IfExp: type=i64
     Compare: type=bool
     Name(e): type=String
     Eq: type=<unknown>
-    Constant: type=Unknown
+    Constant: type=&str
     Name(c): type=i64
     Name(d): type=i64
 

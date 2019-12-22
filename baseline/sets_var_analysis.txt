@@ -17,8 +17,8 @@ Function set_check_and_add:
     Name(a): type=HashSet<&str>
     Return: type=bool
     Constant: type=bool
-    Expr: type=HashSet<&str>
-    Call: type=<unknown>
+    Expr: type=Unknown
+    Call: type=Unknown
     Attribute: type=HashSet<&str>
     Name(a): type=HashSet<&str>
     Load: type=HashSet<&str>

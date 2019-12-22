@@ -6,3 +6,5 @@ pub mod variables;
 pub mod function_calls;
 pub mod tuples;
 pub mod lists;
+pub mod sets;
+pub mod dictionaries;

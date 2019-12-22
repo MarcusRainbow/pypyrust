@@ -38,7 +38,7 @@ Function add_mult_lists:
     Add: type=&[f64]
     Name(b): type=&[f64]
     Mult: type=Vec<f64>
-    Name(c): type=Vec<f64>
+    Name(c): type=&[f64]
     Return: type=Vec<f64>
     Name(d): type=Vec<f64>
 

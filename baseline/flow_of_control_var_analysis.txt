@@ -23,7 +23,7 @@ Function if_elif_else:
     Name(c): type=&str
     If: type=<unknown>
     BoolOp: type=bool
-    Or: type=
+    Or: type=String
     Name(a): type=bool
     Name(b): type=bool
     Return: type=String
@@ -53,10 +53,10 @@ Function while_break_continue:
     Name(b): type=bool
     If: type=<unknown>
     Name(a): type=bool
-    Break: type=
+    Break: type=bool
     If: type=<unknown>
     Name(b): type=bool
-    Continue: type=
+    Continue: type=bool
     Expr: type=()
     Call: type=()
     Name(print): type=<unknown>

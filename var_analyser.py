@@ -43,9 +43,22 @@ TYPE_MAPPING = {
 
 # Mapping from Python function name to Rust return type
 STANDARD_FUNCTION_RETURNS = {
+    "dict":  lambda args: dict_type_from_list(args[0]),
     "print": lambda args: "()",
     "range": lambda args: f"[{args[0]}]",
     "zip":   lambda args: f"[({', '.join([ strip_container(x) for x in args ])})]" 
+}
+
+STANDARD_METHOD_RETURNS = {
+    ("HashMap<_>", "keys"):    lambda types: f"[{types[0]}]",
+    ("HashMap<_>", "values"):  lambda types: f"[{types[1]}]",
+    ("HashMap<_>", "items"):   lambda types: f"[({types[0]}, {types[1]})]",
+    ("HashMap<_>", "get"):     lambda types: types[1],
+    ("HashMap<_>", "clear"):   lambda types: "()",
+    ("HashMap<_>", "update"):  lambda types: "()",
+    ("HashMap<_>", "pop"):     lambda types: types[1],
+    ("HashMap<_>", "popitem"): lambda types: f"({types[0]}, {types[1]})",
+    ("HashMap<_>", "setdefault"): lambda types: types[1],
 }
 
 CONTAINER_CONVERSIONS = {
@@ -59,18 +72,43 @@ MATCHING_BRACKETS = {
     "<": ">", ">": "<",
 }
 
+def method_return_type(class_type: str, method_name: str) -> str:
+    """
+    Given the name of a class and a method on the class, return
+    the return type of the method.
+    """
+    method = (detemplatise(class_type), method_name)
+    if method not in STANDARD_METHOD_RETURNS:
+        return UNKNOWN_TYPE
+
+    types = extract_types(class_type)
+    return STANDARD_METHOD_RETURNS[method](types)
+
 def strip_container(text: str) -> str:
     return text[find_container(text): -1]
 
 def extract_container(text: str) -> str:
     return text[0:find_container(text)]
 
+def dict_type_from_list(text: str) -> str:
+    key_value_tuple = strip_container(text)
+    key_value = strip_container(key_value_tuple)
+    return f"HashMap<{key_value}>"
+
 def detemplatise(text: str) -> str:
-    if "<" not in text or ">" not in text:
-        return text
-    left = text.index("<")
+    left = text.find("<")
     right = text.rfind(">")
+    if left < 0 or right < 0:
+        return text
     return f"{text[:left]}<_>{text[right + 1:]}"
+
+def extract_types(text: str) -> List[str]:
+    left = text.find("<")
+    right = text.rfind(">")
+    if left < 0 or right < 0:
+        return []
+    types = text[left + 1 : right]
+    return types.split(", ")    
 
 def find_container(text: str) -> int:
     """
@@ -129,6 +167,8 @@ def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) ->
         start, end = "&[", "]"
     elif outer_type == "Set":
         start, end = "HashSet<", ">"
+    elif outer_type == "Dict":
+        start, end = "HashMap<", ">"
     else:
         start, end = "<unknown>", "</unknown>"
 
@@ -181,6 +221,8 @@ def container_type(arg_type: str) -> str:
     """
     if arg_type == "&str":
         return "String"
+    elif len(arg_type) == 0:
+        return ""
     elif arg_type[-1] == "]":
         return f"Vec<{strip_container(arg_type)}>"
     else:
@@ -340,11 +382,18 @@ class VariableAnalyser(ast.NodeVisitor):
     
     def set_type(self, typed: str, node):
         """
+        Sets the given type into the annotations and the
+        current type.
+        """
+        self.current_type = typed
+        self.type_by_node[node] = self.current_type
+
+    def merge_type(self, typed: str, node):
+        """
         Merges the given type into whatever type we have using
         standard coercion rules. E.g. int + float -> float
         """
-        self.current_type = merge_types(self.current_type, typed)
-        self.type_by_node[node] = self.current_type
+        self.set_type(merge_types(self.current_type, typed), node)
 
     def set_type_container(self, node):
         """
@@ -385,7 +434,6 @@ class VariableAnalyser(ast.NodeVisitor):
         prev = self.current_type
         arg_types = []
         for a in node.args:
-            self.clear_type()
             self.visit(a)
             arg_types.append(self.current_type)
         self.current_type = prev
@@ -410,6 +458,8 @@ class VariableAnalyser(ast.NodeVisitor):
         # the type of the variable
         if func_path[0] in self.vars:
             self.visit(node.func)
+            typed = method_return_type(self.current_type, func_path[1])
+            self.set_type(typed, node)
             return
 
         # We currently only handle module.func_name
@@ -435,7 +485,6 @@ class VariableAnalyser(ast.NodeVisitor):
         """
         We always return a contained type
         """
-        self.clear_type()
         self.generic_visit(node)
         self.set_type_container(node)
 
@@ -463,31 +512,38 @@ class VariableAnalyser(ast.NodeVisitor):
     def visit_Tuple(self, node):
         types = []
         for element in node.elts:
-            self.clear_type()
             self.visit(element)
             types.append(self.current_type)
         
-        self.clear_type()
         type_string = f"({', '.join(types)})"
         self.set_type(type_string, node)
 
     def visit_List(self, node):
-        old_type = self.current_type
-        self.clear_type()
+        element_type = ""
         for element in node.elts:
             self.visit(element)
-        new_type = self.current_type
-        self.current_type = old_type
-        self.set_type(f"&[{new_type}]", node)
+            element_type = merge_types(element_type, self.current_type)
+        self.set_type(f"&[{element_type}]", node)
 
     def visit_Set(self, node):
-        old_type = self.current_type
-        self.clear_type()
+        element_type = ""
         for element in node.elts:
             self.visit(element)
-        new_type = self.current_type
-        self.current_type = old_type
-        self.set_type(f"HashSet<{new_type}>", node)
+            element_type = merge_types(element_type, self.current_type)
+        self.set_type(f"HashSet<{element_type}>", node)
+
+    def visit_Dict(self, node):
+        key_type = ""
+        value_type = ""
+
+        for key in node.keys:
+            self.visit(key)
+            key_type = merge_types(key_type, self.current_type)
+        for value in node.values:
+            self.visit(value)
+            value_type = merge_types(value_type, self.current_type)
+
+        self.set_type(f"HashMap<{key_type}, {value_type}>", node)
 
     def visit_Subscript(self, node):
         """
@@ -497,10 +553,7 @@ class VariableAnalyser(ast.NodeVisitor):
         the array is consistently typed, and just use the first.
         """
 
-        old_type = self.current_type
-        self.clear_type()
         self.visit(node.slice)      # the integer type of the index
-        self.clear_type()
         self.visit(node.value)      # the name of the variable
 
         types = strip_container(self.current_type).split(", ")
@@ -509,7 +562,6 @@ class VariableAnalyser(ast.NodeVisitor):
         except:
             index = 0   # if the index is not constant, just use the first
 
-        self.current_type = old_type
         self.set_type(types[index], node)
 
     def visit_BinOp(self, node):
@@ -518,8 +570,10 @@ class VariableAnalyser(ast.NodeVisitor):
         must be coerced to a container type such as a String
         """
         self.visit(node.left)
+        left = self.current_type
         self.visit(node.op)
         self.visit(node.right)
+        self.merge_type(left, node)
         self.set_type_container(node)
 
     def visit_UnaryOp(self, node):
@@ -530,7 +584,6 @@ class VariableAnalyser(ast.NodeVisitor):
         self.visit(node.operand)
         op = node.op.__class__.__name__
         if op == "Not":
-            self.clear_type()
             self.set_type("bool", node)
         else:
             self.type_by_node[node] = self.current_type
@@ -543,28 +596,22 @@ class VariableAnalyser(ast.NodeVisitor):
         self.visit(node.op)
         for v in node.values:
             self.visit(v)
-        self.clear_type()
         self.set_type("bool", node)
 
     def visit_Compare(self, node):
         # the result of a comparison is always a bool, regardless of
         # the contained values
         self.visit(node.left)
-        for op, comparator in zip(node.ops, node.comparators):
-            if isinstance(op, ast.In):
-                self.clear_type()   # types each side of "in" are unrelated
+        for comparator in node.comparators:
             self.visit(comparator)
-        self.clear_type()
         self.set_type("bool", node)
 
     def visit_IfExp(self, node):
         # ignore the types of anything in the if condition from the point
         # of view of the returned type. However, we know this if condition
         # must be a bool.
-        prev = self.current_type
         self.visit(node.test)
         self.type_by_node[node.test] = "bool"
-        self.current_type = prev
         self.visit(node.body)
         self.visit(node.orelse)
         self.type_by_node[node] = self.current_type
@@ -574,12 +621,10 @@ class VariableAnalyser(ast.NodeVisitor):
         self.type_by_node[node.test] = "bool"
         prev = self.enter_scope()
         for line in node.body:
-            self.clear_type()
             self.visit(line)
         self.exit_scope(prev)
         prev = self.enter_scope()
         for line in node.orelse:
-            self.clear_type()
             self.visit(line)
         self.exit_scope(prev)
 
@@ -588,46 +633,46 @@ class VariableAnalyser(ast.NodeVisitor):
         self.type_by_node[node.test] = "bool"
         prev = self.enter_scope()
         for line in node.body:
-            self.clear_type()
             self.visit(line)
         self.exit_scope(prev)
     
     def visit_For(self, node):
         # the iterator should return some kind of container or iterator
         # type over the type of the target, a kind of repeated assignment
-        self.clear_type()
         self.visit(node.iter)
         typed = strip_container(self.current_type)
         self.handle_assignment(node.target, typed)
         prev = self.enter_scope()
         for line in node.body:
-            self.clear_type()
             self.visit(line)
         self.exit_scope(prev)
     
     def visit_ListComp(self, node):
+        prev_type = self.current_type
         for generator in node.generators:
-            self.clear_type()
             self.visit(generator)
-        self.clear_type()
         self.visit(node.elt)
-        typed = self.current_type
-        self.clear_type()
-        self.set_type(f"&[{typed}]", node)
+        self.set_type(f"&[{self.current_type}]", node)
 
     def visit_SetComp(self, node):
+        prev_type = self.current_type
         for generator in node.generators:
-            self.clear_type()
             self.visit(generator)
-        self.clear_type()
         self.visit(node.elt)
-        typed = self.current_type
-        self.clear_type()
-        self.set_type(f"HashSet<{typed}>", node)
+        self.set_type(f"HashSet<{self.current_type}>", node)
+
+    def visit_DictComp(self, node):
+        prev_type = self.current_type
+        for generator in node.generators:
+            self.visit(generator)
+        self.visit(node.key)
+        key = self.current_type
+        self.visit(node.value)
+        value = self.current_type
+        self.set_type(f"HashMap<{key}, {value}>", node)
 
     def visit_comprehension(self, node):
         # target, iter, ifs
-        self.clear_type()
         self.visit(node.iter)
         typed = strip_container(self.current_type)
         self.handle_assignment(node.target, typed)
@@ -637,12 +682,10 @@ class VariableAnalyser(ast.NodeVisitor):
         # type returned by the comprehension is unaffected
         prev_type = self.current_type
         for i in node.ifs:
-            self.clear_type()
             self.visit(i)
         self.current_type = prev_type
 
     def visit_Assign(self, node):
-        self.clear_type()
         self.visit(node.value)
         for target in node.targets:
             self.handle_assignment(target, self.current_type)
@@ -662,9 +705,13 @@ class VariableAnalyser(ast.NodeVisitor):
             subtypes = strip_container(typed).split(", ")
             for e, subtype in zip(target.elts, subtypes):
                 self.handle_assignment(e, subtype)
+        
+        # May be a Subscript. E.g. foo[0] = bar. For now, just assume the
+        # type of the container is already set
+        else:
+            self.visit(target)
 
     def visit_AnnAssign(self, node):
-        self.clear_type()
         self.visit(node.value)
         typed = type_from_annotation(node.annotation, node.target, True)
         self.handle_assignment(node.target, typed)
@@ -752,3 +799,4 @@ if __name__ == "__main__":
     test_analyser("tuples")
     test_analyser("lists")
     test_analyser("sets")
+    test_analyser("dictionaries")
