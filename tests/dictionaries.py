@@ -27,7 +27,7 @@ def dict_methods(dictionary: Dict[str, str]):
     assert("bar" in dictionary.values())
 
     for k, v in dictionary.items():
-        print(f"{k}: {v}")
+        print(k, ": ", v)
 
     d = dict(dictionary.items())
 

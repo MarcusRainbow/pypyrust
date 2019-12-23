@@ -1,12 +1,14 @@
+use std::collections::HashSet;
+use std::collections::HashMap;
 pub fn create_set(a: i64, b: i64) -> HashSet<i64> {
     return (a..b).collect::<HashSet<_>>();
 }
 
-pub fn set_check_and_add(a: HashSet<&str>, item: &str) -> bool {
+pub fn set_check_and_add(a: HashSet<String>, item: &str) -> bool {
     if a.contains(item) {
         return true;
     } else {
-        a.insert(item);
+        a.insert(item.to_string());
         return false;
     }
 }

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+use std::collections::HashMap;
 pub fn create_list(a: i64, b: i64) -> Vec<i64> {
     return (a..b).map(|x| (x * x)).collect::<Vec<_>>();
 }
@@ -38,6 +40,6 @@ pub fn static_lists(a: i64) -> bool {
         5,
         7,
         ];
-    return odd.contains(a);
+    return odd.iter().position(|&tmp| tmp == a) != None;
 }
 

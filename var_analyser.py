@@ -133,6 +133,19 @@ def is_list(text: str) -> bool:
     """
     return text[-1] == "]" or text[:4] == "Vec<"
 
+def is_reference_type(text: str) -> bool:
+    """
+    Does the given type represent a reference type?
+    """
+    return text[0] == "&"
+
+def is_iterator_type(text: str) -> bool:
+    """
+    Does the given type represent an iterator?
+    """
+    # TODO we need much tidier handling of iterators
+    return text[0] == "["
+
 def type_from_annotation(annotation, arg: str, container: bool) -> str:
     if annotation is None:
         print(f"missing type annotation for argument '{arg}'", file=sys.stderr)
@@ -172,15 +185,19 @@ def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) ->
     else:
         start, end = "<unknown>", "</unknown>"
 
+    # We always want the types within a container to be container
+    # types themselves. List<&str> is legal Rust, but a pain to
+    # handle in terms of lifetimes.
+
     type_def = annotation.slice.value
     if isinstance(type_def, ast.Name):
-        types = type_from_annotation(type_def, arg, container)
+        types = type_from_annotation(type_def, arg, True)
     elif isinstance(type_def, ast.Tuple):
-        type_str = [type_from_annotation(e, arg, container)
+        type_str = [type_from_annotation(e, arg, True)
             for e in type_def.elts]
         types = ', '.join(type_str)
     elif isinstance(type_def, ast.Subscript):
-        types = type_from_annotation(type_def, arg, container)
+        types = type_from_annotation(type_def, arg, True)
     
     result = f"{start}{types}{end}"
     return container_type(result) if container else result

@@ -1,19 +1,21 @@
-pub fn create_dict(keys: &[&str], values: &[&str]) -> HashMap<String, String> {
-    let d = keys.iter().zip(values.iter()).collect::<HashMap<_>>();
+use std::collections::HashSet;
+use std::collections::HashMap;
+pub fn create_dict(keys: &[String], values: &[String]) -> HashMap<String, String> {
+    let d = keys.iter().zip(values.iter()).collect::<HashMap<_, _>>();
     return d;
 }
 
-pub fn access_dict(keys: &[&str], dictionary: HashMap<&str, &str>) -> Vec<String> {
+pub fn access_dict(keys: &[String], dictionary: HashMap<String, String>) -> Vec<String> {
     let result = [];
     for key in keys {
-        if dictionary.contains(key) {
+        if dictionary.contains_key(key) {
             result.append(dictionary[key]);
         }
     }
     return result;
 }
 
-pub fn extend_dict(key: &str, value: &str, dictionary: HashMap<&str, &str>) {
+pub fn extend_dict(key: &str, value: &str, dictionary: HashMap<String, String>) {
     dictionary[key] = value.to_string();
 }
 
@@ -22,25 +24,26 @@ pub fn static_dict() -> HashMap<String, String> {
         ("foo", 1),
         ("bar", 2),
         ("wombat", 3),
-        ].iter().cloned().collect::<HashMap<_>>();
+        ].iter().cloned().collect::<HashMap<_, _>>();
     return d;
 }
 
-pub fn dict_methods(dictionary: HashMap<&str, &str>) {
-    let foobar = dictionary.get("foo", "bar").to_string();
+pub fn dict_methods(dictionary: HashMap<String, String>) {
+    let foobar = dictionary.get("foo").unwrap_or("bar");
     dictionary.clear();
     dictionary["foo"] = foobar;
-    assert!(dictionary.keys().contains("foo"));
-    assert!(dictionary.values().contains("bar"));
-    for (k, v) in dictionary.items() {
-        println!(k": "v);
+    assert!(dictionary.keys().position(|&tmp| tmp == "foo") != None);
+    assert!(dictionary.values().position(|&tmp0| tmp0 == "bar") != None);
+    for (k, v) in dictionary {
+        println!("{} {} {}", k, ": ", v);
     }
-    let d = dict(dictionary.items());
+    let d = dictionary.collect::<HashMap<_, _>>()
+;
     d.pop("foo", "bar");
-    assert!(!d.contains("foo"));
-    d.update(dictionary.items());
+    assert!(!d.contains_key("foo"));
+    d.update(dictionary);
     // TODO DELETE: d["foo"]
-    let bar = d.setdefault("foo", "bar").to_string();
+    let bar = d.setdefault("foo", "bar");
     assert!(bar == "bar");
     let (k, v) = d.popitem();
     assert!(k == "foo" && v == "bar");

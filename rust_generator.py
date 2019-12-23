@@ -10,7 +10,7 @@ import os
 from typing import Dict, Tuple, List
 from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
     type_from_annotation, container_type_needed, get_node_path, is_list, \
-    detemplatise
+    detemplatise, extract_container, is_reference_type, is_iterator_type
 
 OPEN_BRACE = '{'
 CLOSE_BRACE = '}'
@@ -20,8 +20,180 @@ CLOSE_BRACE = '}'
 ALLOWED_COMPARISON_OPERATORS = { "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE" }
 
 STANDARD_METHODS = {
-    ("HashSet<_>", "add"): "insert"
+    ("HashSet<_>", "add"): lambda v, n: handle_refargs("insert", v, n),
+    ("HashMap<_>", "get"): lambda v, n: handle_get_or_default(v, n),
+    ("HashMap<_>", "items"): lambda v, n: handle_iter(v, n),
 }
+
+def handle_refargs(method_name: str, visitor, node):
+    """
+    Handle a method that takes reference args, such as insert
+    """
+    print(f".{method_name}(", end='')
+    separator = ""
+    for arg in node.args:
+        print(separator, end='')
+        add_reference_if_needed(visitor.type_by_node[arg])
+        visitor.visit_and_optionally_convert(arg)
+        separator = ", "
+    
+    print(")", end='')
+
+def handle_get_or_default(visitor, node):
+    """
+    Handle a method on a Map that returns either a value from
+    the map or a default value.
+    """
+    print(".get(", end='')
+    add_reference_if_needed(visitor.type_by_node[node.args[0]])
+    visitor.visit(node.args[0])
+    print(").unwrap_or(", end='')
+    visitor.visit(node.args[1])
+    print(")", end='')
+
+def add_reference_if_needed(typed: str):
+    """
+    Adds a & character to make a reference if needed.
+    """    
+    if not is_reference_type(typed):
+        print("&", end='')
+
+def print_iter_if_needed(typed: str):
+    """
+    If the given type is not already an iterator, invoke
+    .iter() to make one
+    """
+    if not is_iterator_type(typed):
+        print(".iter()", end='')
+
+def handle_iter(visitor, node):
+    """
+    Returns an iterator type from the given node
+    """
+    print_iter_if_needed(visitor.type_by_node[node])
+
+STANDARD_FUNCTIONS = {
+    "dict":  lambda visitor, node: handle_dict(visitor, node),
+    "print": lambda visitor, node: handle_print(visitor, node),
+    "range": lambda visitor, node: handle_range(visitor, node),
+    "zip":   lambda visitor, node: handle_zip(visitor, node),
+}
+
+def handle_dict(visitor, node):
+    """
+    Python's dict method creates a dictionary from a source of
+    (key, value) tuples. The equivalent Rust is a method on
+    an iterator, collect.
+    """
+    visitor.precedence = MAX_PRECEDENCE * 2    # make sure we put brackets if needed
+    assert(len(node.args) == 1)
+    visitor.visit(node.args[0])
+    print_iter_if_needed(visitor.type_by_node[node.args[0]])
+    print(".collect::<HashMap<_, _>>()")
+
+def handle_print(visitor, node):
+    """
+    Rust print is quite different from Python.
+    """
+    # Detect end= and sep= overrides. We assume that they
+    # are only overridden by constants
+    endline = None
+    sep = " "
+    for k in node.keywords:
+        if k.arg == "end":
+            endline = ast.literal_eval(k.value)
+        elif k.arg == "sep":
+            sep = ast.literal_eval(k.value)
+    
+    # use println if there is a carriage return at the end
+    if endline is None or endline == '\n':
+        print("println!(", end='')
+        suffix = ""
+    else:
+        print("print!(", end='')
+        suffix = endline
+    
+    # Of there is only one or zero argument and no suffix, just print it
+    n = len(node.args)
+    if n <= 1 and suffix == "":
+        if n == 1:
+            visitor.visit(node.args[0])
+
+    # Otherwise, construct a format string, followed by the arguments.
+    # We assume the first arg is not a c-style format string. 
+    else:
+        separator = ""
+        fmt = ""
+        for _ in range(n):
+            fmt += separator
+            separator = sep
+            fmt += "{}"
+        fmt += suffix
+        # What we are trying to do here is to replace characters like
+        # carriage return or tab with their escaped equivalents.
+        # The trouble with repr is that it encloses the string in
+        # single quotes, so we have to replace those with double.
+        print(f'"{repr(fmt)[1:-1]}"', end='')
+
+        for arg in node.args:
+            print(", ", end='')
+            visitor.visit(arg)
+
+    print(")", end='')
+
+def handle_range(visitor, node):
+    """
+    Rust renders Python's range with special syntax.
+
+    Python ranges come in three flavours, depending on the number
+    of arguments, and they map to Rust as follows:
+
+    1. range(a)         ->      0..a
+    2. range(a, b)      ->      a..b
+    3. range(a, b, c)   ->      (a..b).step_by(c)
+    """
+    want_paren = visitor.precedence > 0
+
+    n = len(node.args)
+    if n == 1:
+        if want_paren: print("(", end='')
+        print("0..", end='')
+        visitor.visit(node.args[0])
+        if want_paren: print(")", end='')
+    elif n == 2:
+        if want_paren: print("(", end='')
+        visitor.visit(node.args[0])
+        print("..", end='')
+        visitor.visit(node.args[1])
+        if want_paren: print(")", end='')
+    elif n == 3:
+        print("(")
+        visitor.visit(node.args[0])
+        print("..", end='')
+        visitor.visit(node.args[1])
+        print(").step_by(")
+        visitor.visit(node.args[2])
+        print(")")
+
+def handle_zip(visitor, node):
+    """
+    Rust's zip function is a method
+    on an iterator, rather than a global function.
+
+    We also need to force the iterator to be an iterator with
+    an "iter" method, as the normal rules you'd get in a for
+    loop do not apply.
+    """
+    # Really hard to handle more than two args to a zip in
+    # Rust, though there are third party libraries that do.
+    if len(node.args) != 2:
+        raise Exception("We currently only handle zip with two args")
+
+    visitor.precedence = MAX_PRECEDENCE * 2    # make sure we put brackets if needed
+    visitor.visit(node.args[0])
+    print(".iter().zip(", end='')
+    visitor.visit(node.args[1])
+    print(".iter())", end='')
 
 REPLACE_CONSTANTS = {
     True : "true",
@@ -46,6 +218,14 @@ OPERATOR_PRECEDENCE = {
     "And": 2,
     "Or": 1,
 }
+
+def write_preamble():
+    """
+    Write to stdout a header for the output file, pulling in
+    any standard dependencies.
+    """
+    print("use std::collections::HashSet;")
+    print("use std::collections::HashMap;")
 
 def target_as_string(node) -> str:
     """
@@ -286,13 +466,8 @@ class RustGenerator(ast.NodeVisitor):
 
     def visit_Call(self, node):
         node_path = get_node_path(node.func)
-        if node_path and len(node_path) == 1:
-            if node_path[0] == "print":
-                return self.visit_Print(node)
-            elif node_path[0] == "range":
-                return self.visit_Range(node)
-            elif node_path[0] == "zip":
-                return self.visit_Zip(node)
+        if node_path and len(node_path) == 1 and node_path[0] in STANDARD_FUNCTIONS:
+            return STANDARD_FUNCTIONS[node_path[0]](self, node)
 
         # identify method calls, where the first item is a known variable
         is_method = len(node_path) > 1 and node_path[0] in self.variables
@@ -308,7 +483,8 @@ class RustGenerator(ast.NodeVisitor):
             func_type = self.type_by_node[node.func]
             method = (detemplatise(func_type), node_path[1])
             if method in STANDARD_METHODS:
-                node_path[1] = STANDARD_METHODS[method]
+                print(node_path[0], end='')
+                return STANDARD_METHODS[method](self, node)
 
         separator = "." if is_method else "::"
         first = True
@@ -325,115 +501,6 @@ class RustGenerator(ast.NodeVisitor):
             self.visit(a)
             sep = ", "
         print(")", end='')
-
-    def visit_Print(self, node):
-        """
-        Not part of the standard visitor pattern, but internally
-        special-cased, because Rust print is quite different from
-        Python.
-        """
-        # Detect end= and sep= overrides. We assume that they
-        # are only overridden by constants
-        endline = None
-        sep = " "
-        for k in node.keywords:
-            if k.arg == "end":
-                endline = ast.literal_eval(k.value)
-            elif k.arg == "sep":
-                sep = ast.literal_eval(k.value)
-        
-        # use println if there is a carriage return at the end
-        if endline is None or endline == '\n':
-            print("println!(", end='')
-            suffix = ""
-        else:
-            print("print!(", end='')
-            suffix = endline
-        
-        # Of there is only one or zero argument and no suffix, just print it
-        n = len(node.args)
-        if n <= 1 and suffix == "":
-            if n == 1:
-                self.visit(node.args[0])
-
-        # Otherwise, construct a format string, followed by the arguments.
-        # We assume the first arg is not a c-style format string. 
-        else:
-            separator = ""
-            fmt = ""
-            for _ in range(n):
-                fmt += separator
-                separator = sep
-                fmt += "{}"
-            fmt += suffix
-            # What we are trying to do here is to replace characters like
-            # carriage return or tab with their escaped equivalents.
-            # The trouble with repr is that it encloses the string in
-            # single quotes, so we have to replace those with double.
-            print(f'"{repr(fmt)[1:-1]}"', end='')
-
-            for arg in node.args:
-                print(", ", end='')
-                self.visit(arg)
-
-        print(")", end='')
-
-    def visit_Range(self, node):
-        """
-        Not part of the standard visitor pattern, but internally
-        special-cased, because Rust renders Python's range with
-        special syntax.
-
-        Python ranges come in three flavours, depending on the number
-        of arguments, and they map to Rust as follows:
-
-        1. range(a)         ->      0..a
-        2. range(a, b)      ->      a..b
-        3. range(a, b, c)   ->      (a..b).step_by(c)
-        """
-        want_paren = self.precedence > 0
-
-        n = len(node.args)
-        if n == 1:
-            if want_paren: print("(", end='')
-            print("0..", end='')
-            self.visit(node.args[0])
-            if want_paren: print(")", end='')
-        elif n == 2:
-            if want_paren: print("(", end='')
-            self.visit(node.args[0])
-            print("..", end='')
-            self.visit(node.args[1])
-            if want_paren: print(")", end='')
-        elif n == 3:
-            print("(")
-            self.visit(node.args[0])
-            print("..", end='')
-            self.visit(node.args[1])
-            print(").step_by(")
-            self.visit(node.args[2])
-            print(")")
-
-    def visit_Zip(self, node):
-        """
-        Not part of the standard visitor pattern, but internally
-        special-cased, because Rust's zip function is a method
-        on an iterator, rather than a global function.
-
-        We also need to force the iterator to be an iterator with
-        an "iter" method, as the normal rules you'd get in a for
-        loop do not apply.
-        """
-        # Really hard to handle more than two args to a zip in
-        # Rust, though there are third party libraries that do.
-        if len(node.args) != 2:
-            raise Exception("We currently only handle zip with two args")
-
-        self.precedence = MAX_PRECEDENCE * 2    # make sure we put brackets if needed
-        self.visit(node.args[0])
-        print(".iter().zip(", end='')
-        self.visit(node.args[1])
-        print(".iter())", end='')
 
     def visit_Name(self, node):
         print(f"{node.id}", end='')
@@ -514,7 +581,7 @@ class RustGenerator(ast.NodeVisitor):
                 print(",")
                 print(self.pretty(), end='')
         
-        print("].iter().cloned().collect::<HashMap<_>>()", end='')        
+        print("].iter().cloned().collect::<HashMap<_, _>>()", end='')        
 
         if not short:
             self.add_pretty(-1)
@@ -765,10 +832,25 @@ class RustGenerator(ast.NodeVisitor):
         assert(len(node.comparators) == 1)
 
         self.visit(node.comparators[0])
-        print(".contains(", end='')
+        typed = extract_container(self.type_by_node[node.comparators[0]])
+        use_position = False
+        if typed == "HashSet<":
+            print(".contains(", end='')
+        elif typed == "HashMap<":
+            print(".contains_key(", end='')
+        else:
+            # this method works for any container that supports 
+            # iterators, but is linear in operation time.
+            tmp = self.temp_variable()
+            print_iter_if_needed(typed)
+            print(f".position(|&{tmp}| {tmp} == ", end='')
+            use_position = True
+
         self.precedence = 0
         self.visit(node.left)
         print(")", end='')
+        if use_position:
+            print(" != None", end='')
 
     def visit_Eq(self, node):
         print(" == ", end='')
@@ -883,7 +965,7 @@ class RustGenerator(ast.NodeVisitor):
             print(", ", end='')
             self.visit(node.value)
             print("))", end='')
-        print(".collect::<HashMap<_>>()", end='')
+        print(".collect::<HashMap<_, _>>()", end='')
 
     def do_visit_Comprehension(self, node):
         """
@@ -1063,6 +1145,8 @@ def test_compiler(filename: str):
     old_stdout = sys.stdout
     sys.stdout = output_file
     tree = ast.parse(source, filename, 'exec')
+
+    write_preamble()
 
     function_finder = FunctionHeaderFinder()
     function_finder.visit(tree)
