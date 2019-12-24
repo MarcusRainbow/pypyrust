@@ -42,6 +42,8 @@ class DependencyAnalyser(ast.NodeVisitor):
             print("use std::collections::HashSet;")
         if self.wants_hashmap:
             print("use std::collections::HashMap;")
+        if self.wants_hashmap or self.wants_hashset:
+            print()
 
     def visit_Set(self, node):
         self.wants_hashset = True

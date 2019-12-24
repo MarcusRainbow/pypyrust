@@ -22,10 +22,24 @@ CLOSE_BRACE = '}'
 ALLOWED_COMPARISON_OPERATORS = { "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE" }
 
 STANDARD_METHODS = {
-    ("HashSet<_>", "add"): lambda v, n: handle_refargs("insert", v, n),
-    ("HashMap<_>", "get"): lambda v, n: handle_get_or_default(v, n),
+    ("HashSet<_>", "add")  : lambda v, n: handle_refargs("insert", v, n),
+    ("HashMap<_>", "get")  : lambda v, n: handle_get_or_default(v, n),
     ("HashMap<_>", "items"): lambda v, n: handle_iter(v, n),
+    ("Vec<_>", "append")   : lambda v, n: handle_method("push", v, n),
 }
+
+def handle_method(method_name: str, visitor, node):
+    """
+    Handle a method that takes args that may need a to_string, such as push
+    """
+    print(f".{method_name}(", end='')
+    separator = ""
+    for arg in node.args:
+        print(separator, end='')
+        visitor.visit_and_optionally_convert(arg)
+        separator = ", "
+    
+    print(")", end='')
 
 def handle_refargs(method_name: str, visitor, node):
     """
@@ -49,8 +63,10 @@ def handle_get_or_default(visitor, node):
     print(".get(", end='')
     add_reference_if_needed(visitor.type_by_node[node.args[0]])
     visitor.visit(node.args[0])
-    print(").unwrap_or(", end='')
-    visitor.visit(node.args[1])
+    print(").unwrap_or(&", end='')
+    # note we should always add a reference (&) as 
+    # visit_and_optionally_convert always converts a reference
+    visitor.visit_and_optionally_convert(node.args[1])
     print(")", end='')
 
 def add_reference_if_needed(typed: str):
@@ -72,7 +88,9 @@ def handle_iter(visitor, node):
     """
     Returns an iterator type from the given node
     """
-    print_iter_if_needed(visitor.type_by_node[node])
+    # TODO handle iterators properly, then we can tell whether we need this
+    print(".iter()", end='')
+    # print_iter_if_needed(visitor.type_by_node[node])
 
 STANDARD_FUNCTIONS = {
     "dict":  lambda visitor, node: handle_dict(visitor, node),
@@ -193,9 +211,9 @@ def handle_zip(visitor, node):
 
     visitor.precedence = MAX_PRECEDENCE * 2    # make sure we put brackets if needed
     visitor.visit(node.args[0])
-    print(".iter().zip(", end='')
+    print(".iter().cloned().zip(", end='')
     visitor.visit(node.args[1])
-    print(".iter())", end='')
+    print(".iter().cloned())", end='')
 
 REPLACE_CONSTANTS = {
     True : "true",
@@ -230,11 +248,13 @@ def target_as_string(node) -> str:
         return node.id
     elif isinstance(node, ast.Tuple):
         result = "("
-        separator = "&"         # iterator returns references. Convert these to values
+        # separator = "&"         # iterator returns references. Convert these to values
+        separator = ""
         for element in node.elts:
             result += separator
             result += target_as_string(element)
-            separator = ", &"
+            # separator = ", &"
+            separator = ", "
         result += ")"
         return result
     else:
@@ -521,6 +541,13 @@ class RustGenerator(ast.NodeVisitor):
         print(")", end='')
 
     def visit_List(self, node):
+
+        # Always make a Vec rather than just a slice. We do not know
+        # how it will be used.
+        print("vec!", end='')
+        self.do_visit_List(node)
+        
+    def do_visit_List(self, node):
         print("[", end='')
         
         # special-case empty or short lists for prettiness
@@ -534,7 +561,10 @@ class RustGenerator(ast.NodeVisitor):
         for element in node.elts:
             if short and not first:
                 print(", ", end='')
-            self.visit(element)
+            # We want lists and sets of strings to be
+            # List<String> rather than List<str>, which is
+            # harder to handle the lifetimes of.
+            self.visit_and_optionally_convert(element)
             first = False
             if not short:
                 print(",")
@@ -545,8 +575,9 @@ class RustGenerator(ast.NodeVisitor):
             self.add_pretty(-1)
 
     def visit_Set(self, node):
-        # first construct a list
-        self.visit_List(node)
+        # first construct a list, though without the vec! (a slice
+        # is sufficient)
+        self.do_visit_List(node)
 
         # then convert it to a HashSet
         print(".iter().cloned().collect::<HashSet<_>>()", end='')        
@@ -566,9 +597,9 @@ class RustGenerator(ast.NodeVisitor):
             if short and not first:
                 print(", ", end='')
             print("(", end='')
-            self.visit(key)
+            self.visit_and_optionally_convert(key)
             print(", ", end='')
-            self.visit(value)
+            self.visit_and_optionally_convert(value)
             print(")", end='')
             first = False
             if not short:

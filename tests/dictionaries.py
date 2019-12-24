@@ -14,7 +14,7 @@ def access_dict(keys: List[str], dictionary: Dict[str, str]) -> List[str]:
 def extend_dict(key: str, value: str, dictionary: Dict[str, str]):
     dictionary[key] = value
 
-def static_dict() -> Dict[str, str]:
+def static_dict() -> Dict[str, int]:
     d = {"foo": 1, "bar": 2, "wombat": 3}
     return d
 

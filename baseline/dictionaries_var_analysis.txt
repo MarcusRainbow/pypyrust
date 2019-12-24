@@ -66,8 +66,8 @@ Function static_dict:
 
 Function dict_methods:
     Assign: type=<unknown>
-    Name(foobar): type=String
-    Call: type=String
+    Name(foobar): type=&String
+    Call: type=&String
     Attribute: type=HashMap<String, String>
     Name(dictionary): type=HashMap<String, String>
     Load: type=HashMap<String, String>
@@ -84,7 +84,7 @@ Function dict_methods:
     Index: type=&str
     Constant: type=&str
     Store: type=<unknown>
-    Name(foobar): type=String
+    Name(foobar): type=&String
     Assert: type=bool
     Compare: type=bool
     Constant: type=&str

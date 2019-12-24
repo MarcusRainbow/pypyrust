@@ -53,7 +53,7 @@ STANDARD_METHOD_RETURNS = {
     ("HashMap<_>", "keys"):    lambda types: f"[{types[0]}]",
     ("HashMap<_>", "values"):  lambda types: f"[{types[1]}]",
     ("HashMap<_>", "items"):   lambda types: f"[({types[0]}, {types[1]})]",
-    ("HashMap<_>", "get"):     lambda types: types[1],
+    ("HashMap<_>", "get"):     lambda types: f"&{types[1]}",
     ("HashMap<_>", "clear"):   lambda types: "()",
     ("HashMap<_>", "update"):  lambda types: "()",
     ("HashMap<_>", "pop"):     lambda types: types[1],
@@ -62,7 +62,8 @@ STANDARD_METHOD_RETURNS = {
 }
 
 CONTAINER_CONVERSIONS = {
-    "&str": ".to_string()"
+    "&str": ".to_string()",
+    "&String": ".clone()"
 }
 
 MATCHING_BRACKETS = {
@@ -485,6 +486,10 @@ class VariableAnalyser(ast.NodeVisitor):
             self.visit(node.func)
             typed = method_return_type(self.current_type, func_path[1])
             self.set_type(typed, node)
+
+            # for now, we assume that any method invoked on an object can
+            # mutate that object
+            self.vars[func_path[0]].mutable = True
             return
 
         # We currently only handle module.func_name
