@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::collections::HashMap;
 pub fn create_dict(keys: &[String], values: &[String]) -> HashMap<String, String> {
     let d = keys.iter().zip(values.iter()).collect::<HashMap<_, _>>();
@@ -37,8 +36,7 @@ pub fn dict_methods(dictionary: HashMap<String, String>) {
     for (k, v) in dictionary {
         println!("{} {} {}", k, ": ", v);
     }
-    let d = dictionary.collect::<HashMap<_, _>>()
-;
+    let d = dictionary.collect::<HashMap<_, _>>();
     d.pop("foo", "bar");
     assert!(!d.contains_key("foo"));
     d.update(dictionary);

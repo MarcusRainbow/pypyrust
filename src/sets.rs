@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::collections::HashMap;
 pub fn create_set(a: i64, b: i64) -> HashSet<i64> {
     return (a..b).collect::<HashSet<_>>();
 }

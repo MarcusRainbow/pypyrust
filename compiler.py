@@ -5,7 +5,8 @@ file and generates a Rust source file, representing the Python.
 
 import ast
 import sys
-from rust_generator import RustGenerator, write_preamble
+from rust_generator import RustGenerator
+from dependency_analyser import DependencyAnalyser
 from var_analyser import FunctionHeaderFinder
 
 def compile_to_rust(source, filename: str) -> bool:
@@ -29,10 +30,12 @@ def compile_to_rust(source, filename: str) -> bool:
     function_finder.visit(tree)
 
     # Write the header
-    write_preamble()
+    dependencies = DependencyAnalyser(function_finder.headers)
+    dependencies.visit(tree)
+    dependencies.write_preamble()
 
     # Walk the tree, outputting Rust code as we go (rather like XSLT)
-    RustGenerator(function_finder.get_return_types()).visit(tree)
+    RustGenerator(function_finder.headers).visit(tree)
 
     return True
 

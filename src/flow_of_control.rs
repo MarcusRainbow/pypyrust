@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-use std::collections::HashMap;
 pub fn if_else(a: bool, c: i64) -> i64 {
     if a {
         return c;

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-use std::collections::HashMap;
 pub fn call_add_mult(a: i64, b: i64, c: i64) -> i64 {
     let d = ::add_mult::add_mult(a, b, c);
     let e = ::add_mult::sub_div(a, b, c);

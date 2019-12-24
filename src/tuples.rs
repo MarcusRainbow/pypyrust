@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-use std::collections::HashMap;
 pub fn use_tuple_for_swap(mut a: i64, mut b: i64) -> i64 {
     if b > a {
         let tmp = (b, a);

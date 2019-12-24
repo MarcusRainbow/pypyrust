@@ -10,7 +10,9 @@ import os
 from typing import Dict, Tuple, List
 from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
     type_from_annotation, container_type_needed, get_node_path, is_list, \
-    detemplatise, extract_container, is_reference_type, is_iterator_type
+    detemplatise, extract_container, is_reference_type, is_iterator_type, \
+    FunctionHeader
+from dependency_analyser import DependencyAnalyser
 
 OPEN_BRACE = '{'
 CLOSE_BRACE = '}'
@@ -89,7 +91,7 @@ def handle_dict(visitor, node):
     assert(len(node.args) == 1)
     visitor.visit(node.args[0])
     print_iter_if_needed(visitor.type_by_node[node.args[0]])
-    print(".collect::<HashMap<_, _>>()")
+    print(".collect::<HashMap<_, _>>()", end='')
 
 def handle_print(visitor, node):
     """
@@ -219,14 +221,6 @@ OPERATOR_PRECEDENCE = {
     "Or": 1,
 }
 
-def write_preamble():
-    """
-    Write to stdout a header for the output file, pulling in
-    any standard dependencies.
-    """
-    print("use std::collections::HashSet;")
-    print("use std::collections::HashMap;")
-
 def target_as_string(node) -> str:
     """
     Given a node that is either a Tuple or a Name, return
@@ -254,8 +248,8 @@ class RustGenerator(ast.NodeVisitor):
     it out to stdout.
     """
 
-    def __init__(self, return_types: Dict[str, str]):
-        self.return_types = return_types
+    def __init__(self, headers: Dict[str, FunctionHeader]):
+        self.headers = headers
         self.indent = 0
         self.next_separator = ""
         self.precedence = 0
@@ -406,7 +400,7 @@ class RustGenerator(ast.NodeVisitor):
     def visit_FunctionDef(self, node):
         # Analyse the variables in this function to see which need
         # to be predeclared or marked as mutable
-        analyser = VariableAnalyser(self.return_types)
+        analyser = VariableAnalyser(self.headers)
         analyser.visit(node)
         self.type_by_node = analyser.get_type_by_node()
 
@@ -1130,7 +1124,7 @@ class RustGenerator(ast.NodeVisitor):
 def test_compiler(filename: str):
     input_filename = f"tests/{filename}.py"
     output_filename = f"temp/{filename}.rs"
-    baseline_filename = f"baseline/src/{filename}.rs"
+    baseline_filename = f"src/{filename}.rs"
     
     input_file = open(input_filename, 'r')
     source = input_file.read()
@@ -1146,11 +1140,14 @@ def test_compiler(filename: str):
     sys.stdout = output_file
     tree = ast.parse(source, filename, 'exec')
 
-    write_preamble()
-
     function_finder = FunctionHeaderFinder()
     function_finder.visit(tree)
-    RustGenerator(function_finder.get_return_types()).visit(tree)
+
+    dependencies = DependencyAnalyser(function_finder.headers)
+    dependencies.visit(tree)
+    dependencies.write_preamble()
+
+    RustGenerator(function_finder.headers).visit(tree)
     output_file.close()
     sys.stdout = old_stdout
 

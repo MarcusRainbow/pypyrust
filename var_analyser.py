@@ -281,6 +281,11 @@ def load_and_import_module(name: str) -> object:
     IMPORTED_MODULES[name] = module
     return module
 
+class FunctionHeader:
+    def __init__(self, returns: str, args: [(str, str)]):
+        self.returns = returns
+        self.args = args
+
 class FunctionHeaderFinder(ast.NodeVisitor):
     """
     Given an AST representing a module, find all the function
@@ -288,15 +293,18 @@ class FunctionHeaderFinder(ast.NodeVisitor):
     """
 
     def __init__(self):
-        self.return_types : Dict[str, str] = {}
-
-    def get_return_types(self) -> Dict[str, str]:
-        return self.return_types
+        self.headers : Dict[str, FunctionHeader] = {}
 
     def visit_FunctionDef(self, node):
         name = node.name
-        typed = type_from_annotation(node.returns, f"{name} return", True)
-        self.return_types[name] = typed
+        returns = type_from_annotation(node.returns, f"{name} return", True)
+        args = []
+        for arg in node.args.args:
+            argname = arg.arg
+            typed = type_from_annotation(arg.annotation, f"{name}: {argname}", False)
+            args.append((argname, typed))
+        
+        self.headers[name] = FunctionHeader(returns, args)
 
 class VariableInfo:
     """
@@ -312,12 +320,12 @@ class VariableAnalyser(ast.NodeVisitor):
     and usage. Results are retained internally.
     """
 
-    def __init__(self, return_types: Dict[str, str]):
+    def __init__(self, headers: Dict[str, FunctionHeader]):
         """
         The return types are a dictionary of local function name
         to return type.
         """
-        self.return_types = return_types
+        self.headers = headers
         self.type_by_node: Dict[object, str] = {}
         self.vars: Dict[str, VariableInfo] = {}
         self.out_of_scope: Dict[str, VariableInfo] = {}
@@ -464,11 +472,11 @@ class VariableAnalyser(ast.NodeVisitor):
 
         # Assume function names with no module are defined locally
         if len(func_path) == 1:
-            if func_path[0] not in self.return_types:
+            if func_path[0] not in self.headers:
                 print(f"Warning: cannot find function return for: {func_path[0]}",
                     file = sys.stderr)
             else:
-                self.set_type(self.return_types[func_path[0]], node)
+                self.set_type(self.headers[func_path[0]].returns, node)
 
         # If the first part of the path is a known variable, then this is
         # a method call on that variable. Ignore for now, apart from setting
@@ -665,21 +673,18 @@ class VariableAnalyser(ast.NodeVisitor):
         self.exit_scope(prev)
     
     def visit_ListComp(self, node):
-        prev_type = self.current_type
         for generator in node.generators:
             self.visit(generator)
         self.visit(node.elt)
         self.set_type(f"&[{self.current_type}]", node)
 
     def visit_SetComp(self, node):
-        prev_type = self.current_type
         for generator in node.generators:
             self.visit(generator)
         self.visit(node.elt)
         self.set_type(f"HashSet<{self.current_type}>", node)
 
     def visit_DictComp(self, node):
-        prev_type = self.current_type
         for generator in node.generators:
             self.visit(generator)
         self.visit(node.key)
@@ -793,7 +798,7 @@ def test_analyser(filename):
 
     function_finder = FunctionHeaderFinder()
     function_finder.visit(tree)
-    TestFunctionFinder(function_finder.get_return_types()).visit(tree)
+    TestFunctionFinder(function_finder.headers).visit(tree)
 
     output_file.close()
     sys.stdout = old_stdout

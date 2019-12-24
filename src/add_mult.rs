@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-use std::collections::HashMap;
 pub fn add_mult(a: i64, b: i64, c: i64) -> i64 {
     return a + b * c;
 }
