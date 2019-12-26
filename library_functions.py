@@ -90,14 +90,21 @@ def handle_get_or_default(method_name: str, visitor, node, returns_ref: bool):
     print(")", end='')
 
 def handle_set_default(visitor, node):
-    print("Warning: setdefault is not supported by Rust", file=sys.stderr)
-    visitor.add_pretty(1)
-    print()
-    print(visitor.pretty(), end='')
-    print("// TODO setdefault not supported, replaced with get")
-    print(visitor.pretty(), end='')
-    handle_get_or_default("get", visitor, node, True)
-    visitor.add_pretty(-1)
+    """
+    In Python, set_default returns the value associated with the
+    given key if it is in the dictionary. Otherwise it adds the
+    given default value to the dictionary and returns that.
+
+    In Rust, the entry() method returns an optional value, and
+    or_insert optionally inserts its argument. This does the
+    same as Python, though more flexibly.
+    """
+    print(".entry(", end='')
+    add_reference_if_needed(visitor.type_by_node[node.args[0]])
+    visitor.visit_and_optionally_convert(node.args[0])
+    print(").or_insert(", end='')
+    visitor.visit_and_optionally_convert(node.args[1])
+    print(")", end='')
 
 def add_reference_if_needed(typed: str):
     """
