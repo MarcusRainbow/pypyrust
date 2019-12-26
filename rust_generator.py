@@ -9,9 +9,10 @@ import filecmp
 import os
 from typing import Dict, Tuple, List
 from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
-    type_from_annotation, container_type_needed, get_node_path, is_list, \
+    FunctionHeader, get_node_path
+from var_utils import type_from_annotation, container_type_needed, is_list, \
     detemplatise, extract_container, is_reference_type, is_iterator_type, \
-    FunctionHeader, is_dict
+    is_dict
 from dependency_analyser import DependencyAnalyser
 from library_functions import STANDARD_METHODS, STANDARD_FUNCTIONS, \
     print_iter_if_needed, add_reference_if_needed, \

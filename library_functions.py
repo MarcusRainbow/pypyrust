@@ -5,7 +5,9 @@ conversions into Rust
 
 import sys
 import ast
-from var_analyser import is_iterator_type, is_reference_type
+from var_utils import is_iterator_type, is_reference_type, \
+    dict_type_from_list, strip_container, detemplatise, \
+    extract_types, UNKNOWN_TYPE
 
 ALLOWED_COMPARISON_OPERATORS = { "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE" }
 
@@ -33,7 +35,19 @@ OPERATOR_PRECEDENCE = {
     "Or": 1,
 }
 # One bigger than any actual precedence. Use this to force parentheses
-MAX_PRECEDENCE = 13  
+MAX_PRECEDENCE = 13
+
+STANDARD_METHOD_RETURNS = {
+    ("HashMap<_>", "keys"):    lambda types: f"[{types[0]}]",
+    ("HashMap<_>", "values"):  lambda types: f"[{types[1]}]",
+    ("HashMap<_>", "items"):   lambda types: f"[({types[0]}, {types[1]})]",
+    ("HashMap<_>", "get"):     lambda types: f"&{types[1]}",
+    ("HashMap<_>", "clear"):   lambda types: "()",
+    ("HashMap<_>", "update"):  lambda types: "()",
+    ("HashMap<_>", "pop"):     lambda types: types[1],
+    ("HashMap<_>", "popitem"): lambda types: f"({types[0]}, {types[1]})",
+    ("HashMap<_>", "setdefault"): lambda types: f"&{types[1]}",
+}
 
 STANDARD_METHODS = {
     ("HashSet<_>", "add")  : lambda v, n: handle_refargs("insert", v, n),
@@ -45,6 +59,35 @@ STANDARD_METHODS = {
     ("HashMap<_>", "update"): lambda v, n: handle_update(v, n),
     ("Vec<_>", "append")   : lambda v, n: handle_method("push", v, n),
 }
+
+# Mapping from Python function name to Rust return type
+STANDARD_FUNCTION_RETURNS = {
+    "dict":  lambda args: dict_type_from_list(args[0]),
+    "print": lambda args: "()",
+    "range": lambda args: f"[{args[0]}]",
+    "zip":   lambda args: f"[({', '.join([ strip_container(x) for x in args ])})]",
+    "len":   lambda args: "i64",
+}
+
+STANDARD_FUNCTIONS = {
+    "dict":  lambda visitor, node: handle_dict(visitor, node),
+    "len":   lambda visitor, node: handle_len(visitor, node),
+    "print": lambda visitor, node: handle_print(visitor, node),
+    "range": lambda visitor, node: handle_range(visitor, node),
+    "zip":   lambda visitor, node: handle_zip(visitor, node),
+}
+
+def method_return_type(class_type: str, method_name: str) -> str:
+    """
+    Given the name of a class and a method on the class, return
+    the return type of the method.
+    """
+    method = (detemplatise(class_type), method_name)
+    if method not in STANDARD_METHOD_RETURNS:
+        return UNKNOWN_TYPE
+
+    types = extract_types(class_type)
+    return STANDARD_METHOD_RETURNS[method](types)
 
 def handle_method(method_name: str, visitor, node):
     """
@@ -155,14 +198,6 @@ def handle_update(visitor, node):
     visitor.visit(node.args[0])
     print_iter_if_needed(visitor.type_by_node[node.args[0]])
     print(")", end='')
-
-STANDARD_FUNCTIONS = {
-    "dict":  lambda visitor, node: handle_dict(visitor, node),
-    "len":   lambda visitor, node: handle_len(visitor, node),
-    "print": lambda visitor, node: handle_print(visitor, node),
-    "range": lambda visitor, node: handle_range(visitor, node),
-    "zip":   lambda visitor, node: handle_zip(visitor, node),
-}
 
 def handle_dict(visitor, node):
     """
