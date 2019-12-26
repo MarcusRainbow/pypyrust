@@ -4,7 +4,7 @@ pub fn create_set(a: i64, b: i64) -> HashSet<i64> {
     return (a..b).collect::<HashSet<_>>();
 }
 
-pub fn set_check_and_add(mut a: HashSet<String>, item: &str) -> bool {
+pub fn set_check_and_add(a: &mut HashSet<String>, item: &str) -> bool {
     if a.contains(item) {
         return true;
     } else {

@@ -11,7 +11,7 @@ from typing import Dict, Tuple, List
 from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
     type_from_annotation, container_type_needed, get_node_path, is_list, \
     detemplatise, extract_container, is_reference_type, is_iterator_type, \
-    FunctionHeader
+    FunctionHeader, is_dict
 from dependency_analyser import DependencyAnalyser
 
 OPEN_BRACE = '{'
@@ -319,6 +319,7 @@ class RustGenerator(ast.NodeVisitor):
         self.in_aug_assign = False
         self.variables = set()
         self.mutable_vars = set()
+        self.mutable_ref_vars = set()
         self.type_by_node = {}
         self.target = ""
         self.unpacking = False
@@ -373,7 +374,7 @@ class RustGenerator(ast.NodeVisitor):
         else:
             self.visit(node)
 
-    def sex_variable(self, target) -> Tuple[bool, bool, bool]:
+    def sex_variable(self, target) -> Tuple[bool, bool, bool, bool]:
         """
         Finds out how a variable is to be treated in an
         assignment. Returns three bools:
@@ -381,6 +382,7 @@ class RustGenerator(ast.NodeVisitor):
         1. Is the variable mutable?
         2. Is the variable already declared?
         3. Is the variable suitable for assignment?
+        4. Is this assignment of a dictionary item?
 
         If the variable is not already declared this function returns
         true in its second return value, but internally sets the 
@@ -393,7 +395,7 @@ class RustGenerator(ast.NodeVisitor):
         """
         if isinstance(target, ast.Name):
             name = target.id
-            mutable = name in self.mutable_vars
+            mutable = name in self.mutable_vars or name in self.mutable_ref_vars
             declared = name in self.variables
             assignable = True
 
@@ -402,32 +404,37 @@ class RustGenerator(ast.NodeVisitor):
             if not declared:
                 self.variables.add(name)
 
-            return mutable, declared, assignable
+            return mutable, declared, assignable, False
 
         elif isinstance(target, ast.Tuple):
             # if this is a tuple, all of the contained variables should
             # be declared or none of them. Treat them as mutable if any
             # need to be. Treat them as declared if any are (undeclared
             # variables will give rise to a Rust error).
+            # 
             mutable, declared = False, False
             for element in target.elts:
-                el_mut, el_dec, _ = self.sex_variable(element)
+                el_mut, el_dec, _, el_dict = self.sex_variable(element)
                 if el_mut:
                     mutable = True
                 if el_dec:
                     declared = True
-            return mutable, declared, False
+                if el_dict:
+                    print("Warning: Rust cannot handle assignment into dictionary entries", sys.stderr)
+            return mutable, declared, False, False
 
         elif isinstance(target, ast.Subscript):
             # If the target of the assignment is an element from a tuple
             # or list (e.g. a[3] = 42) we assume the target is mutable and
             # declared.
-            return True, True, True
+            isdict = (target.value in self.type_by_node
+                and is_dict(self.type_by_node[target.value]))
+            return True, True, True, isdict
 
         else:
             # unrecognised type. Add a warning and continue
             print("Warning: unrecognised variable type", file=sys.stderr)
-            return True, False, True
+            return True, False, True, False
 
     def unpack_lists(self, node) -> List[str]:
         """
@@ -475,6 +482,7 @@ class RustGenerator(ast.NodeVisitor):
         # (do we need to worry about nested functions?)
         self.variables.clear()
         self.mutable_vars = analyser.get_mutable_vars()
+        self.mutable_ref_vars = analyser.get_mutable_ref_vars()
 
         # function arg list
         self.next_separator = ""
@@ -507,7 +515,8 @@ class RustGenerator(ast.NodeVisitor):
     def visit_arg(self, node):
         typed = type_from_annotation(node.annotation, node.arg, False)
         mutable = "mut " if node.arg in self.mutable_vars else ""
-        print(f"{self.next_separator}{mutable}{node.arg}: {typed}", end='')
+        ref_type = "&mut " if node.arg in self.mutable_ref_vars else ""
+        print(f"{self.next_separator}{mutable}{node.arg}: {ref_type}{typed}", end='')
         self.variables.add(node.arg)
         self.next_separator = ", "
 
@@ -1112,9 +1121,16 @@ class RustGenerator(ast.NodeVisitor):
 
             # treatment depends on whether it is the first time we
             # have seen this variable. (Do not use shadowing.)
-            mutable, declared, assignable = self.sex_variable(target)
+            mutable, declared, assignable, isdict = self.sex_variable(target)
             tmp_var_name = None
-            if not declared:
+
+            if isdict:
+                self.visit(target.value)
+                print(".insert(", end='')
+                self.visit_and_optionally_convert(target.slice)
+                print(", ", end='')
+
+            elif not declared:
                 print("let ", end='')
                 if mutable and assignable:
                     print("mut ", end='')
@@ -1127,11 +1143,11 @@ class RustGenerator(ast.NodeVisitor):
                 tmp_var_name = self.temp_variable()
 
             if tmp_var_name:
-                print(f"let {tmp_var_name}", end='')
-            else:
+                print(f"let {tmp_var_name} = ", end='')
+            elif not isdict:
                 self.visit(target)      # assign directly to what we want
+                print(" = ", end='')
 
-            print(" = ", end='')
             if first:
                 self.precedence = 0     # don't need params around value
                 self.visit_and_optionally_convert(node.value)
@@ -1140,6 +1156,9 @@ class RustGenerator(ast.NodeVisitor):
             else:
                 # only evaluate expression once
                 self.visit(first_target)
+
+            if isdict:
+                print(")", end='')
             print(";")
 
             # now we may need to assign what we originally wanted to
@@ -1171,7 +1190,7 @@ class RustGenerator(ast.NodeVisitor):
         """
         # treatment depends on whether it is the first time we
         # have seen this variable. (Do not use shadowing.)
-        mutable, declared, _ = self.sex_variable(node.target)
+        mutable, declared, _, _ = self.sex_variable(node.target)
         if declared:
             print(f"{self.pretty()}", end='')
         else:

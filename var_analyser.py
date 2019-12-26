@@ -134,6 +134,12 @@ def is_list(text: str) -> bool:
     """
     return text[-1] == "]" or text[:4] == "Vec<"
 
+def is_dict(text: str) -> bool:
+    """
+    Does the given type represent a dictionary?
+    """
+    return text[:8] == "HashMap<"
+
 def is_reference_type(text: str) -> bool:
     """
     Does the given type represent a reference type?
@@ -314,6 +320,7 @@ class VariableInfo:
     def __init__(self, is_arg: bool, typed: str):
         self.is_arg = is_arg
         self.mutable = False
+        self.mutable_ref = False
         self.typed = typed
 class VariableAnalyser(ast.NodeVisitor):
     """
@@ -348,6 +355,13 @@ class VariableAnalyser(ast.NodeVisitor):
         that need to be marked as mutable.
         """
         return {v for (v, i) in self.vars.items() if i.mutable}
+
+    def get_mutable_ref_vars(self) -> Set[str]:
+        """
+        After running visit, this can return a set of variables
+        that need to be marked as mutable reference.
+        """
+        return {v for (v, i) in self.vars.items() if i.mutable_ref}
 
     def get_type_by_node(self) -> Dict[object, str]:
         """
@@ -489,7 +503,7 @@ class VariableAnalyser(ast.NodeVisitor):
 
             # for now, we assume that any method invoked on an object can
             # mutate that object
-            self.vars[func_path[0]].mutable = True
+            self.vars[func_path[0]].mutable_ref = True
             return
 
         # We currently only handle module.func_name
@@ -733,8 +747,14 @@ class VariableAnalyser(ast.NodeVisitor):
             for e, subtype in zip(target.elts, subtypes):
                 self.handle_assignment(e, subtype)
         
-        # May be a Subscript. E.g. foo[0] = bar. For now, just assume the
-        # type of the container is already set
+        # May be a Subscript. E.g. foo[0] = bar. Ensure the variable
+        # is mutable reference
+        elif isinstance(target, ast.Subscript):
+            container = target.value.id
+            self.vars[container].mutable_ref = True
+            self.visit(target)
+        
+        # Anything else, just make sure we visit it
         else:
             self.visit(target)
 
