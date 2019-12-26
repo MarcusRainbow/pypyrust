@@ -58,7 +58,7 @@ STANDARD_METHOD_RETURNS = {
     ("HashMap<_>", "update"):  lambda types: "()",
     ("HashMap<_>", "pop"):     lambda types: types[1],
     ("HashMap<_>", "popitem"): lambda types: f"({types[0]}, {types[1]})",
-    ("HashMap<_>", "setdefault"): lambda types: types[1],
+    ("HashMap<_>", "setdefault"): lambda types: f"&{types[1]}",
 }
 
 CONTAINER_CONVERSIONS = {

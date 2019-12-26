@@ -124,7 +124,8 @@ Function dict_methods:
     Attribute: type=HashMap<String, String>
     Name(dictionary): type=HashMap<String, String>
     Load: type=HashMap<String, String>
-    Expr: type=String
+    Assign: type=<unknown>
+    Name(bar): type=String
     Call: type=String
     Attribute: type=HashMap<String, String>
     Name(d): type=HashMap<String, String>
@@ -136,6 +137,11 @@ Function dict_methods:
     Constant: type=&str
     NotIn: type=<unknown>
     Name(d): type=HashMap<String, String>
+    Assert: type=bool
+    Compare: type=bool
+    Name(bar): type=String
+    Eq: type=<unknown>
+    Constant: type=&str
     Expr: type=()
     Call: type=()
     Attribute: type=HashMap<String, String>
@@ -152,8 +158,8 @@ Function dict_methods:
     Constant: type=&str
     Del: type=<unknown>
     Assign: type=<unknown>
-    Name(bar): type=String
-    Call: type=String
+    Name(bar): type=&String
+    Call: type=&String
     Attribute: type=HashMap<String, String>
     Name(d): type=HashMap<String, String>
     Load: type=HashMap<String, String>

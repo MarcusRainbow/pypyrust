@@ -23,8 +23,12 @@ ALLOWED_COMPARISON_OPERATORS = { "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE" }
 
 STANDARD_METHODS = {
     ("HashSet<_>", "add")  : lambda v, n: handle_refargs("insert", v, n),
-    ("HashMap<_>", "get")  : lambda v, n: handle_get_or_default(v, n),
-    ("HashMap<_>", "items"): lambda v, n: handle_iter(v, n),
+    ("HashMap<_>", "get")  : lambda v, n: handle_get_or_default("get", v, n, True),
+    ("HashMap<_>", "items"): lambda v, n: handle_items(v, n),
+    ("HashMap<_>", "pop")  : lambda v, n: handle_get_or_default("remove", v, n, False),
+    ("HashMap<_>", "popitem"): lambda v, n: handle_popitem(v, n),
+    ("HashMap<_>", "setdefault"): lambda v, n: handle_set_default(v, n),
+    ("HashMap<_>", "update"): lambda v, n: handle_update(v, n),
     ("Vec<_>", "append")   : lambda v, n: handle_method("push", v, n),
 }
 
@@ -55,19 +59,31 @@ def handle_refargs(method_name: str, visitor, node):
     
     print(")", end='')
 
-def handle_get_or_default(visitor, node):
+def handle_get_or_default(method_name: str, visitor, node, returns_ref: bool):
     """
     Handle a method on a Map that returns either a value from
     the map or a default value.
     """
-    print(".get(", end='')
+    print(f".{method_name}(", end='')
     add_reference_if_needed(visitor.type_by_node[node.args[0]])
     visitor.visit(node.args[0])
-    print(").unwrap_or(&", end='')
-    # note we should always add a reference (&) as 
-    # visit_and_optionally_convert always converts a reference
+    print(").unwrap_or(", end='')
+    if returns_ref:
+        # note we should always add a reference (&) as 
+        # visit_and_optionally_convert always converts a reference
+        print("&", end='')
     visitor.visit_and_optionally_convert(node.args[1])
     print(")", end='')
+
+def handle_set_default(visitor, node):
+    print("Warning: setdefault is not supported by Rust", file=sys.stderr)
+    visitor.add_pretty(1)
+    print()
+    print(visitor.pretty(), end='')
+    print("// TODO setdefault not supported, replaced with get")
+    print(visitor.pretty(), end='')
+    handle_get_or_default("get", visitor, node, True)
+    visitor.add_pretty(-1)
 
 def add_reference_if_needed(typed: str):
     """
@@ -84,13 +100,36 @@ def print_iter_if_needed(typed: str):
     if not is_iterator_type(typed):
         print(".iter()", end='')
 
-def handle_iter(visitor, node):
+def handle_items(visitor, node):
     """
-    Returns an iterator type from the given node
+    Returns an iterator to a (key, value) pair. In Rust this is tricky
+    because iter() returns an iterator to (&key, &value) so we need
+    to convert this.
     """
-    # TODO handle iterators properly, then we can tell whether we need this
-    print(".iter()", end='')
-    # print_iter_if_needed(visitor.type_by_node[node])
+    print(".iter().map(|(&k, &v)| (k, v))", end='')
+
+def handle_popitem(visitor, node):
+    """
+    In Python returns some arbitrary (key, value) pair, which is removed.
+
+    Rust has a similar remove_entry, but this requires a key. We use
+    drain, which returns an iterator, and just take the first entry.
+
+    If the iterator is exhausted, in other words there are no more elements,
+    Rust like Python just panics. (Why is this sensible behaviour?)
+    """
+    print(".drain().next().unwrap()", end='')
+
+def handle_update(visitor, node):
+    """
+    In Python, update takes an iterator yielding (key, value) pairs
+    or a dictionary, and adds them all to self. The equivalent in
+    Rust is extend.
+    """
+    print(".extend(", end='')
+    visitor.visit(node.args[0])
+    print_iter_if_needed(visitor.type_by_node[node.args[0]])
+    print(")", end='')
 
 STANDARD_FUNCTIONS = {
     "dict":  lambda visitor, node: handle_dict(visitor, node),

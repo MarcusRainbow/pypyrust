@@ -31,8 +31,9 @@ def dict_methods(dictionary: Dict[str, str]):
 
     d = dict(dictionary.items())
 
-    d.pop("foo", "bar")
+    bar = d.pop("foo", "bar")
     assert("foo" not in d)
+    assert(bar == "bar")
     d.update(dictionary.items())
 
     del d["foo"]
