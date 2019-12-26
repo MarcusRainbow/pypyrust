@@ -38,6 +38,6 @@ pub fn static_lists(a: i64) -> bool {
         5,
         7,
         ];
-    return odd.iter().position(|tmp| tmp == a) != None;
+    return odd.iter().position(|&tmp| tmp == a) != None;
 }
 

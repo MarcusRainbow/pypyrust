@@ -14,7 +14,8 @@ from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
     FunctionHeader, is_dict
 from dependency_analyser import DependencyAnalyser
 from library_functions import STANDARD_METHODS, STANDARD_FUNCTIONS, \
-    print_iter_if_needed, OPERATOR_PRECEDENCE, MAX_PRECEDENCE, \
+    print_iter_if_needed, add_reference_if_needed, \
+    OPERATOR_PRECEDENCE, MAX_PRECEDENCE, \
     REPLACE_CONSTANTS, ALLOWED_COMPARISON_OPERATORS
 
 OPEN_BRACE = '{'
@@ -658,7 +659,9 @@ class RustGenerator(ast.NodeVisitor):
             # iterators, but is linear in operation time.
             tmp = self.temp_variable()
             print_iter_if_needed(typed)
-            print(f".position(|{tmp}| {tmp} == ", end='')
+            print(".position(|", end='')
+            add_reference_if_needed(self.type_by_node[node.left])
+            print(f"{tmp}| {tmp} == ", end='')
             use_position = True
 
         self.precedence = 0
