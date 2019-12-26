@@ -283,7 +283,7 @@ def handle_zip(visitor, node):
 def handle_len(visitor, node):
     """
     In Python, len(foo) returns the number of items in foo. The
-    equivalent in Rust is foo.size()
+    equivalent in Rust is foo.len()
     """
     visitor.visit(node.args[0])
-    print(".size()", end='')
+    print(".len()", end='')

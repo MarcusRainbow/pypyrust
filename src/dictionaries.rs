@@ -43,7 +43,7 @@ pub fn dict_methods(dictionary: &mut HashMap<String, String>) {
     assert!(bar == "bar");
     d.extend(dictionary.iter().map(|(ref k, ref v)| ((*k).clone(), (*v).clone())));
     d.remove("foo");
-    let l = d.size();
+    let l = d.len();
     assert!(l == 0);
     bar = d.entry("foo".to_string()).or_insert("bar".to_string()).clone();
     assert!(bar == "bar");
