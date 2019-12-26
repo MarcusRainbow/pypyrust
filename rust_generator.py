@@ -839,12 +839,27 @@ class RustGenerator(ast.NodeVisitor):
         print(");")
     
     def visit_Delete(self, node):
-        print("Warning: del not yet supported", file=sys.stderr)
-        print(f"{self.pretty()}// TODO DELETE:", end='')
+        """
+        In Python you can delete any variable in whole or part.
+        However, it only really makes sense when deleting an
+        item from a container such as a dictionary.
+
+            del foo("bar") foo("BAR")
+
+        translates to 
+
+            foo.remove("bar");
+            foo.remove("BAR");
+        """
         for t in node.targets:
-            print(" ", end='')
-            self.visit(t)
-        print()
+            if isinstance(t, ast.Subscript):
+                print(self.pretty(), end='')
+                self.visit(t.value)
+                print(".remove(", end='')
+                self.visit(t.slice)
+                print(");")
+            else:
+                print("Warning: del only implemented for collections", sys.stderr)
 
     def visit_Assign(self, node):
         """

@@ -42,7 +42,7 @@ pub fn dict_methods(dictionary: &mut HashMap<String, String>) {
     assert!(!d.contains_key("foo"));
     assert!(bar == "bar");
     d.extend(dictionary.iter().map(|(ref k, ref v)| ((*k).clone(), (*v).clone())));
-    // TODO DELETE: d["foo"]
+    d.remove("foo");
     bar = d.entry("foo".to_string()).or_insert("bar".to_string()).clone();
     assert!(bar == "bar");
     let (k, v) = d.drain().next().unwrap();
