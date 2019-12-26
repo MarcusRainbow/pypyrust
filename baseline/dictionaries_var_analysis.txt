@@ -158,6 +158,16 @@ Function dict_methods:
     Constant: type=&str
     Del: type=<unknown>
     Assign: type=<unknown>
+    Name(l): type=i64
+    Call: type=i64
+    Name(len): type=<unknown>
+    Name(d): type=HashMap<String, String>
+    Assert: type=bool
+    Compare: type=bool
+    Name(l): type=i64
+    Eq: type=<unknown>
+    Constant: type=i64
+    Assign: type=<unknown>
     Name(bar): type=&String
     Call: type=&String
     Attribute: type=HashMap<String, String>

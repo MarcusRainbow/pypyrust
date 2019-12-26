@@ -46,7 +46,8 @@ STANDARD_FUNCTION_RETURNS = {
     "dict":  lambda args: dict_type_from_list(args[0]),
     "print": lambda args: "()",
     "range": lambda args: f"[{args[0]}]",
-    "zip":   lambda args: f"[({', '.join([ strip_container(x) for x in args ])})]" 
+    "zip":   lambda args: f"[({', '.join([ strip_container(x) for x in args ])})]",
+    "len":   lambda args: "i64",
 }
 
 STANDARD_METHOD_RETURNS = {

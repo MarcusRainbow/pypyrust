@@ -38,6 +38,9 @@ def dict_methods(dictionary: Dict[str, str]):
 
     del d["foo"]
 
+    l = len(d)
+    assert(l == 0)
+
     bar = d.setdefault("foo", "bar")
     assert(bar == "bar")
 

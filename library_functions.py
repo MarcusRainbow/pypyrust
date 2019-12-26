@@ -158,6 +158,7 @@ def handle_update(visitor, node):
 
 STANDARD_FUNCTIONS = {
     "dict":  lambda visitor, node: handle_dict(visitor, node),
+    "len":   lambda visitor, node: handle_len(visitor, node),
     "print": lambda visitor, node: handle_print(visitor, node),
     "range": lambda visitor, node: handle_range(visitor, node),
     "zip":   lambda visitor, node: handle_zip(visitor, node),
@@ -278,3 +279,11 @@ def handle_zip(visitor, node):
     print(".iter().cloned().zip(", end='')
     visitor.visit(node.args[1])
     print(".iter().cloned())", end='')
+
+def handle_len(visitor, node):
+    """
+    In Python, len(foo) returns the number of items in foo. The
+    equivalent in Rust is foo.size()
+    """
+    visitor.visit(node.args[0])
+    print(".size()", end='')
