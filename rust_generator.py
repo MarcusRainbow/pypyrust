@@ -105,8 +105,12 @@ def handle_items(visitor, node):
     Returns an iterator to a (key, value) pair. In Rust this is tricky
     because iter() returns an iterator to (&key, &value) so we need
     to convert this.
+
+    This is an example of a place where Rust is really hard to handle
+    because of its rules about borrowing, and the lack of overloaded
+    functions.
     """
-    print(".iter().map(|(&k, &v)| (k, v))", end='')
+    print(".iter().map(|(ref k, ref v)| ((*k).clone(), (*v).clone()))", end='')
 
 def handle_popitem(visitor, node):
     """
@@ -907,7 +911,7 @@ class RustGenerator(ast.NodeVisitor):
             # iterators, but is linear in operation time.
             tmp = self.temp_variable()
             print_iter_if_needed(typed)
-            print(f".position(|&{tmp}| {tmp} == ", end='')
+            print(f".position(|{tmp}| {tmp} == ", end='')
             use_position = True
 
         self.precedence = 0

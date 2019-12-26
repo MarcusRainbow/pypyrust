@@ -15,8 +15,8 @@ pub fn access_dict(keys: &[String], dictionary: HashMap<String, String>) -> Vec<
     return result;
 }
 
-pub fn extend_dict(key: &str, value: &str, dictionary: &mut HashMap<String, String>) {
-    dictionary.insert(key.to_string(), value.to_string());
+pub fn extend_dict(key: &str, value: &str, dictionary: HashMap<String, String>) {
+    dictionary[key] = value.to_string();
 }
 
 pub fn static_dict() -> HashMap<String, i64> {
@@ -31,13 +31,13 @@ pub fn static_dict() -> HashMap<String, i64> {
 pub fn dict_methods(mut dictionary: HashMap<String, String>) {
     let foobar = dictionary.get("foo").unwrap_or(&"bar".to_string()).clone();
     dictionary.clear();
-    dictionary.insert("foo".to_string(), foobar.clone());
+    dictionary["foo"] = foobar.clone();
     assert!(dictionary.keys().position(|tmp| tmp == "foo") != None);
     assert!(dictionary.values().position(|tmp0| tmp0 == "bar") != None);
     for (k, v) in dictionary.iter().map(|(ref k, ref v)| ((*k).clone(), (*v).clone())) {
         println!("{} {} {}", k, ": ", v);
     }
-    let mut d = dictionary.iter().map(|(ref k, ref v)| ((*k).clone(), (*v).clone())).collect::<HashMap<String, String>>();
+    let mut d = dictionary.iter().map(|(ref k, ref v)| ((*k).clone(), (*v).clone())).collect::<HashMap<_, _>>();
     let mut bar = d.remove("foo").unwrap_or("bar".to_string());
     assert!(!d.contains_key("foo"));
     assert!(bar == "bar");

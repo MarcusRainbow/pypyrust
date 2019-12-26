@@ -34,7 +34,7 @@ Function access_dict:
     Attribute: type=Vec<>
     Name(result): type=Vec<>
     Load: type=Vec<>
-    Subscript: type=String
+    Subscript: type=&String
     Name(dictionary): type=HashMap<String, String>
     Index: type=String
     Name(key): type=String
@@ -44,7 +44,7 @@ Function access_dict:
 
 Function extend_dict:
     Assign: type=<unknown>
-    Subscript: type=String
+    Subscript: type=&String
     Name(dictionary): type=HashMap<String, String>
     Index: type=&str
     Name(key): type=&str
@@ -79,7 +79,7 @@ Function dict_methods:
     Name(dictionary): type=HashMap<String, String>
     Load: type=HashMap<String, String>
     Assign: type=<unknown>
-    Subscript: type=String
+    Subscript: type=&String
     Name(dictionary): type=HashMap<String, String>
     Index: type=&str
     Constant: type=&str
@@ -151,8 +151,8 @@ Function dict_methods:
     Attribute: type=HashMap<String, String>
     Name(dictionary): type=HashMap<String, String>
     Load: type=HashMap<String, String>
-    Delete: type=String
-    Subscript: type=String
+    Delete: type=&String
+    Subscript: type=&String
     Name(d): type=HashMap<String, String>
     Index: type=&str
     Constant: type=&str

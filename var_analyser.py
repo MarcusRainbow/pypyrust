@@ -592,7 +592,7 @@ class VariableAnalyser(ast.NodeVisitor):
         except:
             index = 0   # if the index is not constant, just use the first
 
-        self.set_type(types[index], node)
+        self.set_type(f"&{types[index]}", node)
 
     def visit_BinOp(self, node):
         """
