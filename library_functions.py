@@ -47,17 +47,38 @@ STANDARD_METHOD_RETURNS = {
     ("HashMap<_>", "pop"):     lambda types: types[1],
     ("HashMap<_>", "popitem"): lambda types: f"({types[0]}, {types[1]})",
     ("HashMap<_>", "setdefault"): lambda types: f"&{types[1]}",
+    ("Vec<_>", "append"):      lambda types: (),
+    ("Vec<_>", "insert"):      lambda types: (),
+    ("Vec<_>", "extend"):      lambda types: (),
+    ("Vec<_>", "index"):       lambda types: "i64",
+    ("Vec<_>", "sum"):         lambda types: types[0],
+    ("Vec<_>", "count"):       lambda types: "i64",
+    ("Vec<_>", "min"):         lambda types: types[0],
+    ("Vec<_>", "max"):         lambda types: types[0],
+    ("Vec<_>", "reverse"):     lambda types: (),
+    ("Vec<_>", "sort"):        lambda types: (),
+    ("Vec<_>", "pop"):         lambda types: types[0],
 }
 
 STANDARD_METHODS = {
-    ("HashSet<_>", "add")  : lambda v, n: handle_refargs("insert", v, n),
-    ("HashMap<_>", "get")  : lambda v, n: handle_get_or_default("get", v, n, True),
-    ("HashMap<_>", "items"): lambda v, n: handle_items(v, n),
-    ("HashMap<_>", "pop")  : lambda v, n: handle_get_or_default("remove", v, n, False),
+    ("HashSet<_>", "add")  :   lambda v, n: handle_refargs("insert", v, n),
+    ("HashMap<_>", "get")  :   lambda v, n: handle_get_or_default("get", v, n, True),
+    ("HashMap<_>", "items"):   lambda v, n: handle_items(v, n),
+    ("HashMap<_>", "pop")  :   lambda v, n: handle_get_or_default("remove", v, n, False),
     ("HashMap<_>", "popitem"): lambda v, n: handle_popitem(v, n),
     ("HashMap<_>", "setdefault"): lambda v, n: handle_set_default(v, n),
-    ("HashMap<_>", "update"): lambda v, n: handle_update(v, n),
-    ("Vec<_>", "append")   : lambda v, n: handle_method("push", v, n),
+    ("HashMap<_>", "update"):  lambda v, n: handle_update(v, n),
+    ("Vec<_>", "append")   :   lambda v, n: handle_method("push", v, n),
+    ("Vec<_>", "insert"):      lambda v, n: handle_method("insert", v, n),
+    ("Vec<_>", "extend"):      lambda v, n: handle_method("extend", v, n),
+    ("Vec<_>", "index"):       lambda v, n: handle_index(v, n),
+    ("Vec<_>", "sum"):         lambda v, n: handle_sum(v, n),
+    ("Vec<_>", "count"):       lambda v, n: handle_count(v, n),
+    ("Vec<_>", "min"):         lambda v, n: handle_iter_method_unwrapped("min", v, n),
+    ("Vec<_>", "max"):         lambda v, n: handle_iter_method_unwrapped("max", v, n),
+    ("Vec<_>", "reverse"):     lambda v, n: handle_method("reverse", v, n),
+    ("Vec<_>", "sort"):        lambda v, n: handle_method("sort", v, n),
+    ("Vec<_>", "pop"):         lambda v, n: handle_method_unwrapped("pop", v, n),
 }
 
 # Mapping from Python function name to Rust return type
@@ -101,6 +122,18 @@ def handle_method(method_name: str, visitor, node):
         separator = ", "
     
     print(")", end='')
+
+def handle_method_unwrapped(method_name: str, visitor, node):
+    handle_method(method_name, visitor, node)
+    print(".unwrap()", end='')
+
+def handle_iter_method(method_name: str, visitor, node):
+    print_iter_if_needed(visitor.type_by_node[node.func])
+    handle_method(method_name, visitor, node)
+
+def handle_iter_method_unwrapped(method_name: str, visitor, node):
+    handle_iter_method(method_name, visitor, node)
+    print(".unwrap()", end='')
 
 def handle_refargs(method_name: str, visitor, node):
     """
@@ -198,6 +231,41 @@ def handle_update(visitor, node):
     visitor.visit(node.args[0])
     print_iter_if_needed(visitor.type_by_node[node.args[0]])
     print(")", end='')
+
+def handle_count(visitor, node):
+    """
+    In Python, the count method counts the number of items in
+    a container matching a given value. In Rust, count just
+    counts all the items in the container, so we filter it first.
+    """
+    print_iter_if_needed(visitor.type_by_node[node.func])
+    print(".filter(|&x| x == ", end='')
+    visitor.visit(node.args[0])
+    print(").count()", end='')
+
+def handle_sum(visitor, node):
+    """
+    We can nearly handle sum as handle_iter_method("sum", v, n)
+    but Rust requires the type.
+    """
+    print_iter_if_needed(visitor.type_by_node[node.func])
+    typed = visitor.type_by_node[node]
+    print(f".sum::<{typed}>()", end='')
+
+def handle_index(visitor, node):
+    """
+    In Python, index returns the integer position of the
+    given item, or raises an exception if not there. In
+    Rust, we handle this with a position, panicking if
+    the item doesn't exist.
+    """
+    print_iter_if_needed(visitor.type_by_node[node.func])
+    if is_reference_type(visitor.type_by_node[node.args[0]]):
+        print(".position(|ref x| *x == ", end='')
+    else:
+        print(".position(|&x| x == ", end='')
+    visitor.visit(node.args[0])
+    print(").unwrap()", end='')
 
 def handle_dict(visitor, node):
     """

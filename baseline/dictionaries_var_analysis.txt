@@ -29,8 +29,8 @@ Function access_dict:
     Name(key): type=String
     In: type=<unknown>
     Name(dictionary): type=HashMap<String, String>
-    Expr: type=Unknown
-    Call: type=Unknown
+    Expr: type=()
+    Call: type=()
     Attribute: type=Vec<>
     Name(result): type=Vec<>
     Load: type=Vec<>

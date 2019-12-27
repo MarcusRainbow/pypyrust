@@ -21,6 +21,10 @@ TYPE_COERCIONS = {
     ("f64", "i64"): "f64",
     ("Vec<", "&["): "Vec<",
     ("&[", "Vec<"): "Vec<",
+    ("&str", "i64"): "String",
+    ("i64", "&str"): "String",
+    ("String", "i64"): "String",
+    ("i64", "String"): "String",
 }
 
 # Mapping from Python type to Rust equivalent (arg type)
@@ -79,6 +83,18 @@ def find_container(text: str) -> int:
     if matching not in text:
         return 0
     return text.index(matching) + 1
+
+def is_string(text: str) -> bool:
+    """
+    Does the given type represent a string?
+    """
+    return text == "&str" or text == "String"
+
+def is_int(text: str) -> bool:
+    """
+    Does the given type represent an int?
+    """
+    return text == "i64"
 
 def is_list(text: str) -> bool:
     """

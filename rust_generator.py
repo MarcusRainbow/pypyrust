@@ -12,7 +12,7 @@ from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
     FunctionHeader, get_node_path
 from var_utils import type_from_annotation, container_type_needed, is_list, \
     detemplatise, extract_container, is_reference_type, is_iterator_type, \
-    is_dict
+    is_dict, is_string, is_int
 from dependency_analyser import DependencyAnalyser
 from library_functions import STANDARD_METHODS, STANDARD_FUNCTIONS, \
     print_iter_if_needed, add_reference_if_needed, \
@@ -44,6 +44,13 @@ def target_as_string(node) -> str:
         return result
     else:
         raise Exception("We only support tuples and names as the target of comprehensions")
+
+def string_repeat_needed(visitor, node):
+    """
+    Should we treat this * operator as a string repeat?
+    """
+    return (is_string(visitor.type_by_node[node.left]) 
+        and is_int(visitor.type_by_node[node.right]))
 
 class RustGenerator(ast.NodeVisitor):
     """
@@ -458,6 +465,8 @@ class RustGenerator(ast.NodeVisitor):
         op = node.op.__class__.__name__
         if op == "Pow":
             self.visit_PowOp(node)
+        elif op == "Mult" and string_repeat_needed(self, node):
+            self.visit_StringRepeat(node)
         else:
             self.parens_if_needed(op, lambda: self.do_visit_BinOp(node))
 
@@ -493,6 +502,24 @@ class RustGenerator(ast.NodeVisitor):
         self.precedence = 0     # already have parentheses
         self.visit(node.right)
         print(") as u32)", end='')
+
+        self.precedence = old_prec
+
+    def visit_StringRepeat(self, node):
+        """
+        Not a standard visitor function, but one we invoke
+        to handle the String repeat operator "*"
+        """
+        # ensure that any contained expression gets wrapped in
+        # parentheses
+        old_prec = self.precedence
+        self.precedence = MAX_PRECEDENCE * 2
+
+        self.visit(node.left)
+        print(".repeat(", end='')
+        self.precedence = MAX_PRECEDENCE * 2
+        self.visit(node.right)
+        print(" as usize)", end='')
 
         self.precedence = old_prec
 
