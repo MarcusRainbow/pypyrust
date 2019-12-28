@@ -46,28 +46,59 @@ STANDARD_METHOD_RETURNS = {
     ("HashMap<_>", "update"):  lambda types: "()",
     ("HashMap<_>", "pop"):     lambda types: types[1],
     ("HashMap<_>", "popitem"): lambda types: f"({types[0]}, {types[1]})",
-    ("HashMap<_>", "setdefault"): lambda types: f"&{types[1]}",
-    ("Vec<_>", "append"):      lambda types: (),
-    ("Vec<_>", "insert"):      lambda types: (),
-    ("Vec<_>", "extend"):      lambda types: (),
+    ("HashMap<_>", "setdefault"):   lambda types: f"&{types[1]}",
+    ("HashSet<_>", "add"):          lambda types: "()",
+    ("HashSet<_>", "clear"):        lambda types: "()",
+    ("HashSet<_>", "copy"):         lambda types: f"HashSet<{types[0]}>",
+    ("HashSet<_>", "difference"):   lambda types: f"HashSet<{types[0]}>",
+    ("HashSet<_>", "difference_update"): lambda types: "()",
+    ("HashSet<_>", "discard"):      lambda types: "()",
+    ("HashSet<_>", "intersection"): lambda types: f"HashSet<{types[0]}>",
+    ("HashSet<_>", "intersection_update"): lambda types: "()",
+    ("HashSet<_>", "isdisjoint"):   lambda types: "bool",
+    ("HashSet<_>", "issubset"):     lambda types: "bool",
+    ("HashSet<_>", "issuperset"):   lambda types: "bool",
+    ("HashSet<_>", "remove"):       lambda types: "()",
+    ("HashSet<_>", "symmetric_difference"):        lambda types: f"HashSet<{types[0]}>",
+    ("HashSet<_>", "symmetric_difference_update"): lambda types: "()",
+    ("HashSet<_>", "union"):        lambda types: f"HashSet<{types[0]}>",
+    ("HashSet<_>", "union_update"): lambda types: "()",
+    ("Vec<_>", "append"):      lambda types: "()",
+    ("Vec<_>", "insert"):      lambda types: "()",
+    ("Vec<_>", "extend"):      lambda types: "()",
     ("Vec<_>", "index"):       lambda types: "i64",
     ("Vec<_>", "sum"):         lambda types: types[0],
     ("Vec<_>", "count"):       lambda types: "i64",
     ("Vec<_>", "min"):         lambda types: types[0],
     ("Vec<_>", "max"):         lambda types: types[0],
-    ("Vec<_>", "reverse"):     lambda types: (),
-    ("Vec<_>", "sort"):        lambda types: (),
+    ("Vec<_>", "reverse"):     lambda types: "()",
+    ("Vec<_>", "sort"):        lambda types: "()",
     ("Vec<_>", "pop"):         lambda types: types[0],
 }
 
 STANDARD_METHODS = {
-    ("HashSet<_>", "add")  :   lambda v, n: handle_refargs("insert", v, n),
     ("HashMap<_>", "get")  :   lambda v, n: handle_get_or_default("get", v, n, True),
     ("HashMap<_>", "items"):   lambda v, n: handle_items(v, n),
     ("HashMap<_>", "pop")  :   lambda v, n: handle_get_or_default("remove", v, n, False),
     ("HashMap<_>", "popitem"): lambda v, n: handle_popitem(v, n),
     ("HashMap<_>", "setdefault"): lambda v, n: handle_set_default(v, n),
     ("HashMap<_>", "update"):  lambda v, n: handle_update(v, n),
+    ("HashSet<_>", "add")  :   lambda v, n: handle_method("insert", v, n),
+    ("HashSet<_>", "clear"):   lambda v, n: handle_method("clear", v, n),
+    ("HashSet<_>", "copy"):    lambda v, n: handle_method("clone", v, n),
+    ("HashSet<_>", "difference"):   lambda v, n: handle_collect("difference", v, n),
+    ("HashSet<_>", "difference_update"): lambda v, n: handle_todo("difference_update", v, n),
+    ("HashSet<_>", "discard"):      lambda v, n: handle_refargs("remove", v, n),
+    ("HashSet<_>", "intersection"): lambda v, n: handle_collect("intersection", v, n),
+    ("HashSet<_>", "intersection_update"): lambda v, n: handle_todo("intersection_update", v, n),
+    ("HashSet<_>", "isdisjoint"):   lambda v, n: handle_refargs("is_disjoint", v, n),
+    ("HashSet<_>", "issubset"):     lambda v, n: handle_refargs("is_subset", v, n),
+    ("HashSet<_>", "issuperset"):   lambda v, n: handle_refargs("is_superset", v, n),
+    ("HashSet<_>", "remove"):       lambda v, n: handle_refargs("remove", v, n),
+    ("HashSet<_>", "symmetric_difference"): lambda v, n: handle_collect("symmetric_difference", v, n),
+    ("HashSet<_>", "symmetric_difference_update"): lambda v, n: handle_todo("symmetric_difference_update", v, n),
+    ("HashSet<_>", "union"):        lambda v, n: handle_collect("union", v, n),
+    ("HashSet<_>", "union_update"): lambda v, n: handle_method("union_update", v, n),
     ("Vec<_>", "append")   :   lambda v, n: handle_method("push", v, n),
     ("Vec<_>", "insert"):      lambda v, n: handle_method("insert", v, n),
     ("Vec<_>", "extend"):      lambda v, n: handle_method("extend", v, n),
@@ -123,6 +154,24 @@ def handle_method(method_name: str, visitor, node):
     
     print(")", end='')
 
+def handle_todo(method_name: str, visitor, node):
+    """
+    Handle a method that is not currently supported, for example
+    because there is no equivalent in Rust.
+
+    Replace it with the "clear" method, which at least ensures
+    the Rust clean compiles and does not return unwanted data.
+    """
+    print(f"Warning: there is no Rust equivalent of {method_name}", file=sys.stderr)
+    print(".clear();")
+    print(f"{visitor.pretty()}// TODO {method_name}(", end='')
+    separator = ""
+    for arg in node.args:
+        print(separator, end='')
+        visitor.visit_and_optionally_convert(arg)
+        separator = ", "
+    print(")", end='')
+
 def handle_method_unwrapped(method_name: str, visitor, node):
     handle_method(method_name, visitor, node)
     print(".unwrap()", end='')
@@ -144,10 +193,26 @@ def handle_refargs(method_name: str, visitor, node):
     for arg in node.args:
         print(separator, end='')
         add_reference_if_needed(visitor.type_by_node[arg])
-        visitor.visit_and_optionally_convert(arg)
+        visitor.visit(arg)
         separator = ", "
     
     print(")", end='')
+
+def handle_collect(method_name: str, visitor, node):
+    """
+    Handle a method that takes reference args and returns an
+    iterator that must be collected, such as intersection.
+    """
+    print(f".{method_name}(", end='')
+    separator = ""
+    for arg in node.args:
+        print(separator, end='')
+        add_reference_if_needed(visitor.type_by_node[arg])
+        visitor.visit_and_optionally_convert(arg)
+        separator = ", "
+
+    typed = visitor.type_by_node[node.func]
+    print(f").cloned().collect::<{typed}>()", end='')
 
 def handle_get_or_default(method_name: str, visitor, node, returns_ref: bool):
     """

@@ -662,8 +662,10 @@ class RustGenerator(ast.NodeVisitor):
         assert(len(node.comparators) == 1)
 
         self.precedence = MAX_PRECEDENCE * 2    # "as" binds tightly in Rust
+        add_reference_if_needed(self.type_by_node[node.left])
         self.visit(node.left)
         print(f" as *const _ {op} ", end='')
+        add_reference_if_needed(self.type_by_node[node.comparators[0]])
         self.visit(node.comparators[0])
         print(" as *const _", end='')
 
@@ -887,6 +889,10 @@ class RustGenerator(ast.NodeVisitor):
                 print(self.pretty(), end='')
                 self.visit(t.value)
                 print(".remove(", end='')
+                # rather horribly, Rust requires remove(&x) for a set or map
+                # but remove(x) for a list 
+                if not is_list(self.type_by_node[t.value]):
+                    add_reference_if_needed(self.type_by_node[t.slice])
                 self.visit(t.slice)
                 print(");")
             else:
