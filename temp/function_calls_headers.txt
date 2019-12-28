@@ -1,0 +1,17 @@
+Function call_add_mult:
+    returns i64
+    a: i64,
+    b: i64,
+    c: i64,
+
+Function call_flow_of_control:
+    returns i64
+    a: bool,
+    b: i64,
+
+Function call_local:
+    returns i64
+    a: i64,
+    b: i64,
+    c: i64,
+

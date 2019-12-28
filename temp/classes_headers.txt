@@ -1,0 +1,33 @@
+Function __init__:
+    returns None
+    self: None,
+    a: i64,
+    b: &str,
+
+Function increment:
+    returns None
+    self: None,
+
+Function add:
+    returns None
+    self: None,
+    x: i64,
+
+Function create_foo:
+    returns <_ast.Name object at 0x00000174C7489850>
+    a: i64,
+    b: &str,
+
+Function increment_foo:
+    returns None
+    foo: <_ast.Name object at 0x00000174C7489910>,
+
+Function add_foo:
+    returns None
+    foo: <_ast.Name object at 0x00000174C7489D60>,
+    x: i64,
+
+Function examine_foo:
+    returns None
+    foo: <_ast.Name object at 0x00000174C749C280>,
+

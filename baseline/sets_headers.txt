@@ -1,0 +1,18 @@
+Function create_set:
+    returns HashSet<i64>
+    a: i64,
+    b: i64,
+
+Function set_check_and_add:
+    returns bool
+    a: HashSet<String>,
+    item: &str,
+
+Function create_static_set:
+    returns HashSet<String>
+
+Function set_methods:
+    returns None
+    a: i64,
+    b: &str,
+

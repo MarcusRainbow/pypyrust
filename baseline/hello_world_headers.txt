@@ -1,0 +1,18 @@
+Function hello:
+    returns None
+
+Function hello_override_end:
+    returns None
+
+Function hello_multi:
+    returns None
+
+Function hello_multi_override_sep:
+    returns None
+
+Function hello_multi_override_end:
+    returns None
+
+Function hello_override_end_non_empty:
+    returns None
+

@@ -1,0 +1,32 @@
+Function if_else:
+    returns i64
+    a: bool,
+    c: i64,
+
+Function return_if_else:
+    returns i64
+    a: bool,
+    c: i64,
+
+Function if_elif_else:
+    returns String
+    a: bool,
+    b: bool,
+    c: &str,
+    d: &str,
+
+Function while_loop:
+    returns None
+    a: bool,
+    b: bool,
+
+Function while_break_continue:
+    returns None
+    a: bool,
+    b: bool,
+
+Function for_loop:
+    returns i64
+    a: i64,
+    b: i64,
+

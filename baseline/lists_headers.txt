@@ -1,0 +1,34 @@
+Function create_list:
+    returns Vec<i64>
+    a: i64,
+    b: i64,
+
+Function process_list:
+    returns Vec<(i64, i64)>
+    a: &[i64],
+    b: &[i64],
+
+Function add_mult_lists:
+    returns Vec<f64>
+    a: &[f64],
+    b: &[f64],
+    c: &[f64],
+
+Function manual_iterator:
+    returns (f64, f64)
+    a: &[f64],
+
+Function manual_dot_product:
+    returns f64
+    a: &[f64],
+    b: &[f64],
+
+Function static_lists:
+    returns bool
+    a: i64,
+
+Function list_methods:
+    returns None
+    a: i64,
+    b: &str,
+

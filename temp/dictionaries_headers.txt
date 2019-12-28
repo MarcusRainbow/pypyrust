@@ -1,0 +1,23 @@
+Function create_dict:
+    returns HashMap<String, String>
+    keys: &[String],
+    values: &[String],
+
+Function access_dict:
+    returns Vec<String>
+    keys: &[String],
+    dictionary: HashMap<String, String>,
+
+Function extend_dict:
+    returns None
+    key: &str,
+    value: &str,
+    dictionary: HashMap<String, String>,
+
+Function static_dict:
+    returns HashMap<String, i64>
+
+Function dict_methods:
+    returns None
+    dictionary: HashMap<String, String>,
+

@@ -11,6 +11,7 @@ from importlib import import_module, invalidate_caches
 from library_functions import method_return_type, STANDARD_FUNCTION_RETURNS
 from var_utils import type_from_annotation, merge_types, container_type, \
     strip_container, UNKNOWN_TYPE
+from headers import FunctionHeader, FunctionHeaderFinder
 
 # Mapping from Rust type to Rust default initialiser
 DEFAULT_VALUES = {
@@ -44,31 +45,6 @@ def load_and_import_module(name: str) -> object:
     invalidate_caches()
     IMPORTED_MODULES[name] = module
     return module
-
-class FunctionHeader:
-    def __init__(self, returns: str, args: [(str, str)]):
-        self.returns = returns
-        self.args = args
-
-class FunctionHeaderFinder(ast.NodeVisitor):
-    """
-    Given an AST representing a module, find all the function
-    definitions and record the return types.
-    """
-
-    def __init__(self):
-        self.headers : Dict[str, FunctionHeader] = {}
-
-    def visit_FunctionDef(self, node):
-        name = node.name
-        returns = type_from_annotation(node.returns, f"{name} return", True)
-        args = []
-        for arg in node.args.args:
-            argname = arg.arg
-            typed = type_from_annotation(arg.annotation, f"{name}: {argname}", False)
-            args.append((argname, typed))
-        
-        self.headers[name] = FunctionHeader(returns, args)
 
 class VariableInfo:
     """
@@ -522,6 +498,8 @@ class VariableAnalyser(ast.NodeVisitor):
 
     def visit_AugAssign(self, node):
         # x += foo is the same as x = x + foo
+
+        # TODO node.target may be an attribute (e.g. self.foo)
         typed = self.read_access(node.target.id)
         self.set_type(typed, node.target)
         self.visit(node.value)
@@ -604,3 +582,4 @@ if __name__ == "__main__":
     test_analyser("lists")
     test_analyser("sets")
     test_analyser("dictionaries")
+    # test_analyser("classes")

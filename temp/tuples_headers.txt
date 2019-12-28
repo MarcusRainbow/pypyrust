@@ -1,0 +1,19 @@
+Function use_tuple_for_swap:
+    returns i64
+    a: i64,
+    b: i64,
+
+Function return_tuple:
+    returns (i64, i64)
+    a: i64,
+    b: i64,
+
+Function use_returned_tuple:
+    returns i64
+    a: i64,
+    b: i64,
+
+Function tuple_in_args:
+    returns i64
+    a: (i64, i64),
+
