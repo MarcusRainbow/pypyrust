@@ -59,6 +59,11 @@ def detemplatise(text: str) -> str:
         return text
     return f"{text[:left]}<_>{text[right + 1:]}"
 
+def dereference(text: str) -> str:
+    while text[0] == "&":
+        text = text[1:]
+    return text
+
 def extract_types(text: str) -> List[str]:
     left = text.find("<")
     right = text.rfind(">")
@@ -121,10 +126,22 @@ def is_iterator_type(text: str) -> bool:
     # TODO we need much tidier handling of iterators
     return text[0] == "["
 
+def numeric_type(node: ast.Num) -> str:
+    python_type = type(node.n).__name__
+    if python_type == 'int' or python_type == 'long':
+        return "i64"
+    elif python_type == 'float':
+        return "f64"
+    else:
+        raise Exception(f"Unsupported numeric type: {python_type}")
+
 def type_from_annotation(annotation, arg: str, container: bool) -> str:
     if annotation is None:
-        print(f"missing type annotation for argument '{arg}'", file=sys.stderr)
-        return 'None'
+        if arg == "self":
+            return ""
+        else:
+            print(f"missing type annotation for argument '{arg}'", file=sys.stderr)
+            return 'None'
     elif isinstance(annotation, str):
         id = annotation
     elif isinstance(annotation, ast.Name):
@@ -141,8 +158,10 @@ def type_from_annotation(annotation, arg: str, container: bool) -> str:
         arg_type = TYPE_MAPPING[id]
         return container_type(arg_type) if container else arg_type
     else:
-        print(f"unrecognised type annotation for argument '{arg}': '{id}'", file=sys.stderr)
-        return annotation
+        # assume this is a locally defined type such as a Class. If a
+        # container type is required, return the type itself. Otherwise
+        # a reference.
+        return id if container else f"&{id}"
 
 def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) -> str:
     """

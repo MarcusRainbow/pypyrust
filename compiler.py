@@ -26,16 +26,16 @@ def compile_to_rust(source, filename: str) -> bool:
     tree = ast.parse(source, filename, 'exec')
 
     # Find the local header definitions
-    function_finder = FunctionHeaderFinder()
-    function_finder.visit(tree)
+    ff = FunctionHeaderFinder()
+    ff.visit(tree)
 
     # Write the header
-    dependencies = DependencyAnalyser(function_finder.headers)
+    dependencies = DependencyAnalyser(ff.headers)
     dependencies.visit(tree)
     dependencies.write_preamble()
 
     # Walk the tree, outputting Rust code as we go (rather like XSLT)
-    RustGenerator(function_finder.headers).visit(tree)
+    RustGenerator(ff.headers, ff.class_headers).visit(tree)
 
     return True
 

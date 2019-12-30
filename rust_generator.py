@@ -9,10 +9,10 @@ import filecmp
 import os
 from typing import Dict, Tuple, List
 from var_analyser import VariableAnalyser, FunctionHeaderFinder, \
-    FunctionHeader, get_node_path
+    FunctionHeader, ClassHeader, get_node_path
 from var_utils import type_from_annotation, container_type_needed, is_list, \
     detemplatise, extract_container, is_reference_type, is_iterator_type, \
-    is_dict, is_string, is_int
+    is_dict, is_string, is_int, container_type, dereference
 from dependency_analyser import DependencyAnalyser
 from library_functions import STANDARD_METHODS, STANDARD_FUNCTIONS, \
     print_iter_if_needed, add_reference_if_needed, \
@@ -58,8 +58,14 @@ class RustGenerator(ast.NodeVisitor):
     it out to stdout.
     """
 
-    def __init__(self, headers: Dict[str, FunctionHeader]):
+    def __init__(
+            self, 
+            headers: Dict[str, FunctionHeader],
+            class_headers: Dict[str, ClassHeader]):
+
         self.headers = headers
+        self.class_headers = class_headers
+        self.current_self = ""
         self.indent = 0
         self.next_separator = ""
         self.precedence = 0
@@ -70,6 +76,7 @@ class RustGenerator(ast.NodeVisitor):
         self.type_by_node = {}
         self.target = ""
         self.unpacking = False
+        self.is_init = False
 
     def pretty(self):
         return '    ' * self.indent
@@ -178,6 +185,10 @@ class RustGenerator(ast.NodeVisitor):
                 and is_dict(self.type_by_node[target.value]))
             return True, True, True, isdict
 
+        elif isinstance(target, ast.Attribute):
+            # Member variable such as self.a or foo.b
+            return False, False, True, False
+
         else:
             # unrecognised type. Add a warning and continue
             print("Warning: unrecognised variable type", file=sys.stderr)
@@ -214,16 +225,54 @@ class RustGenerator(ast.NodeVisitor):
             print("Warning: unhandled subnode of binary operator on lists", file=sys.stderr)
             return None
 
+    def visit_ClassDef(self, node):
+        # The variable analyser works out the member variables of
+        # the class and their types, as well as the types of
+        # methods.
+        classname = node.name
+        classdef = self.class_headers[classname]
+        self.current_self = classname
+
+        print(f"{self.pretty()}pub struct {classname} {OPEN_BRACE}")
+        self.add_pretty(1)
+
+        # For now we make all member variables public,
+        # because Python doesn't allow any different. Maybe make
+        # this a user option in future.
+        for member, member_type in classdef.instance_attributes.items():
+            typed = container_type(member_type)
+            print(f"{self.pretty()}pub {member}: {typed},")
+
+        self.add_pretty(-1)
+        print(f"{self.pretty()}{CLOSE_BRACE}")
+        print()
+
+        print(f"{self.pretty()}impl {classname} {OPEN_BRACE}")
+        self.add_pretty(1)
+
+        # TODO if there are base classes, treat them as traits to be implemented
+        for line in node.body:
+            self.visit(line)
+
+        self.add_pretty(-1)
+        print(f"{self.pretty()}{CLOSE_BRACE}")
+        print()
+
+        self.current_self = ""
+
     def visit_FunctionDef(self, node):
         # Analyse the variables in this function to see which need
         # to be predeclared or marked as mutable
-        analyser = VariableAnalyser(self.headers)
+        analyser = VariableAnalyser(self.headers, self.class_headers, self.current_self)
         analyser.visit(node)
         self.type_by_node = analyser.get_type_by_node()
 
         # function name. Always public, as Python has no
-        # private functions.
-        print(f"{self.pretty()}pub fn {node.name}(", end='')
+        # private functions. Special handling for __init__,
+        # which we always call "new".
+        self.is_init = node.name == "__init__"
+        name = "new" if self.is_init else node.name
+        print(f"{self.pretty()}pub fn {name}(", end='')
 
         # start with a clean set of variables 
         # (do we need to worry about nested functions?)
@@ -236,7 +285,9 @@ class RustGenerator(ast.NodeVisitor):
         self.generic_visit(node.args)
 
         # return value
-        if node.returns is not None:
+        if self.is_init:
+            print(f") -> {self.current_self} {OPEN_BRACE}")
+        elif node.returns is not None:
             typed = type_from_annotation(node.returns, "return", True)
             print(f") -> {typed} {OPEN_BRACE}")
         else:
@@ -249,9 +300,20 @@ class RustGenerator(ast.NodeVisitor):
             self.variables.add(var)
             print(f"{self.pretty()}let mut {var}: {typed} = {default};")
 
-        # body of the function
+        # body of the function, but special handling for __init__
         for expr in node.body:
             self.visit(expr)
+
+        # in the case of __init__, we now want to return the object
+        if self.is_init:
+            print(f"{self.pretty()}{self.current_self} {OPEN_BRACE}")
+            self.add_pretty(1)
+            classdef = self.class_headers[self.current_self]
+            for member, _ in classdef.instance_attributes.items():
+                print(f"{self.pretty()}{member}: tmp_{member},")
+            self.add_pretty(-1)
+            print(f"{self.pretty()}{CLOSE_BRACE}")
+        
         self.add_pretty(-1)
         print(f"{self.pretty()}{CLOSE_BRACE}")
         print()
@@ -260,12 +322,19 @@ class RustGenerator(ast.NodeVisitor):
         self.variables.clear()
 
     def visit_arg(self, node):
-        typed = type_from_annotation(node.annotation, node.arg, False)
-        mutable = "mut " if node.arg in self.mutable_vars else ""
         ref_type = "&mut " if node.arg in self.mutable_ref_vars else ""
-        print(f"{self.next_separator}{mutable}{node.arg}: {ref_type}{typed}", end='')
-        self.variables.add(node.arg)
-        self.next_separator = ", "
+        if node.arg == "self":
+            if not self.is_init:
+                print(f"{ref_type}self", end='')
+                self.next_separator = ", "
+        else:
+            typed = type_from_annotation(node.annotation, node.arg, False)
+            if ref_type:
+                typed = dereference(typed)
+            mutable = "mut " if node.arg in self.mutable_vars else ""
+            print(f"{self.next_separator}{mutable}{node.arg}: {ref_type}{typed}", end='')
+            self.variables.add(node.arg)
+            self.next_separator = ", "
 
     def visit_Expr(self, node):
         print(f"{self.pretty()}", end='')
@@ -307,6 +376,11 @@ class RustGenerator(ast.NodeVisitor):
             print(name, end='')
             first = False
 
+        # Replace constructor calls of the form Foo(..) with Foo::new(..)
+        # TODO handle class constructors in other modules etc.
+        if len(node_path) == 1 and node_path[0] in self.class_headers:
+            print("::new", end='')
+
         print("(", end='')
         sep = ""
         for a in node.args:
@@ -317,6 +391,26 @@ class RustGenerator(ast.NodeVisitor):
 
     def visit_Name(self, node):
         print(f"{node.id}", end='')
+
+    def visit_Attribute(self, node):
+        """
+        Visits code of the form a.b, such as accessing a member variable.
+
+        For the __init__ function, the Python version can intersperse
+        self.member assignments with other expressions. The Rust
+        new function must collect all the self.member assignments at
+        the end with special syntax.
+
+        Rather than assuming that reordering is OK (in other words, the
+        calls that assign the members do not have side-effects) we keep
+        the given ordering, and instead use temp variables.
+        """
+        if (self.is_init and isinstance(node.value, ast.Name) and
+            node.value.id == "self"):
+            print(f"tmp_{node.attr}", end='')
+        else:
+            self.visit(node.value)
+            print(f".{node.attr}", end='')
 
     def visit_NameConstant(self, node):
         val = node.value
@@ -1023,14 +1117,14 @@ def test_compiler(filename: str):
     sys.stdout = output_file
     tree = ast.parse(source, filename, 'exec')
 
-    function_finder = FunctionHeaderFinder()
-    function_finder.visit(tree)
+    ff = FunctionHeaderFinder()
+    ff.visit(tree)
 
-    dependencies = DependencyAnalyser(function_finder.headers)
+    dependencies = DependencyAnalyser(ff.headers)
     dependencies.visit(tree)
     dependencies.write_preamble()
 
-    RustGenerator(function_finder.headers).visit(tree)
+    RustGenerator(ff.headers, ff.class_headers).visit(tree)
     output_file.close()
     sys.stdout = old_stdout
 
@@ -1054,4 +1148,4 @@ if __name__ == "__main__":
     test_compiler("lists")
     test_compiler("sets")
     test_compiler("dictionaries")
-
+    test_compiler("classes")

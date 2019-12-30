@@ -1,0 +1,115 @@
+Class Foo:
+
+Foo.method __init__:
+    Assign: type=<unknown>
+    Attribute: type=i64
+    Name(self): type=<unknown>
+    Store: type=<unknown>
+    Name(a): type=i64
+    Assign: type=<unknown>
+    Attribute: type=&str
+    Name(self): type=<unknown>
+    Store: type=<unknown>
+    Name(b): type=&str
+    Assign: type=<unknown>
+    Attribute: type=i64
+    Name(self): type=<unknown>
+    Store: type=<unknown>
+    Constant: type=i64
+
+Foo.method increment:
+    AugAssign: type=<unknown>
+    Attribute: type=i64
+    Name(self): type=<unknown>
+    Store: type=<unknown>
+    Add: type=<unknown>
+    Constant: type=i64
+
+Foo.method add:
+    AugAssign: type=<unknown>
+    Attribute: type=i64
+    Name(self): type=<unknown>
+    Store: type=<unknown>
+    Add: type=<unknown>
+    Name(x): type=i64
+
+Function create_foo:
+    Assign: type=<unknown>
+    Name(foo): type=
+    Call: type=<unknown>
+    Name(Foo): type=<unknown>
+    Name(a): type=i64
+    Name(b): type=&str
+    Return: type=
+    Name(foo): type=
+
+Function increment_foo:
+    Assign: type=<unknown>
+    Name(was): type=i64
+    Attribute: type=i64
+    Name(foo): type=<unknown>
+    Load: type=&Foo
+    Expr: type=Unknown
+    Call: type=Unknown
+    Attribute: type=&Foo
+    Name(foo): type=&Foo
+    Load: type=&Foo
+    Assign: type=<unknown>
+    Name(now): type=i64
+    Attribute: type=i64
+    Name(foo): type=<unknown>
+    Load: type=&Foo
+    Assert: type=bool
+    Compare: type=bool
+    Name(now): type=i64
+    Eq: type=<unknown>
+    BinOp: type=i64
+    Name(was): type=i64
+    Add: type=i64
+    Constant: type=i64
+
+Function add_foo:
+    Assign: type=<unknown>
+    Name(was): type=i64
+    Attribute: type=i64
+    Name(foo): type=<unknown>
+    Load: type=&Foo
+    Expr: type=Unknown
+    Call: type=Unknown
+    Attribute: type=&Foo
+    Name(foo): type=&Foo
+    Load: type=&Foo
+    Name(x): type=i64
+    Assign: type=<unknown>
+    Name(now): type=i64
+    Attribute: type=i64
+    Name(foo): type=<unknown>
+    Load: type=&Foo
+    Assert: type=bool
+    Compare: type=bool
+    Name(now): type=i64
+    Eq: type=<unknown>
+    BinOp: type=i64
+    Name(was): type=i64
+    Add: type=i64
+    Name(x): type=i64
+
+Function examine_foo:
+    Assign: type=<unknown>
+    Name(b): type=String
+    Attribute: type=&str
+    Name(foo): type=<unknown>
+    Load: type=<unknown>
+    Assign: type=<unknown>
+    Name(a): type=i64
+    Attribute: type=i64
+    Name(foo): type=<unknown>
+    Load: type=<unknown>
+    Expr: type=()
+    Call: type=()
+    Name(print): type=<unknown>
+    Constant: type=&str
+    Name(a): type=i64
+    Constant: type=&str
+    Name(b): type=String
+

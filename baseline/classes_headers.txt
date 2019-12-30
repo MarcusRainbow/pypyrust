@@ -1,0 +1,39 @@
+Function create_foo:
+    returns Foo
+    a: i64,
+    b: &str,
+
+Function increment_foo:
+    returns None
+    foo: &Foo,
+
+Function add_foo:
+    returns None
+    foo: &Foo,
+    x: i64,
+
+Function examine_foo:
+    returns None
+    foo: &Foo,
+
+Class Foo:
+    a: i64
+    b: &str
+    counter: i64
+
+    method: __init__
+        returns None
+        self: None,
+        a: i64,
+        b: &str,
+
+    method: increment
+        returns None
+        self: None,
+
+    method: add
+        returns None
+        self: None,
+        x: i64,
+
+

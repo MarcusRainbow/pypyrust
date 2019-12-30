@@ -8,3 +8,4 @@ pub mod tuples;
 pub mod lists;
 pub mod sets;
 pub mod dictionaries;
+pub mod classes;

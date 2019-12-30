@@ -10,8 +10,8 @@ import os
 from importlib import import_module, invalidate_caches
 from library_functions import method_return_type, STANDARD_FUNCTION_RETURNS
 from var_utils import type_from_annotation, merge_types, container_type, \
-    strip_container, UNKNOWN_TYPE
-from headers import FunctionHeader, FunctionHeaderFinder
+    strip_container, UNKNOWN_TYPE, numeric_type, dereference
+from headers import FunctionHeader, FunctionHeaderFinder, ClassHeader
 
 # Mapping from Rust type to Rust default initialiser
 DEFAULT_VALUES = {
@@ -61,17 +61,24 @@ class VariableAnalyser(ast.NodeVisitor):
     and usage. Results are retained internally.
     """
 
-    def __init__(self, headers: Dict[str, FunctionHeader]):
+    def __init__(
+            self, 
+            headers: Dict[str, FunctionHeader],
+            class_headers: Dict[str, ClassHeader],
+            current_self: str):
         """
         The return types are a dictionary of local function name
         to return type.
         """
         self.headers = headers
+        self.class_headers = class_headers
+        self.current_self = current_self
         self.type_by_node: Dict[object, str] = {}
         self.vars: Dict[str, VariableInfo] = {}
         self.out_of_scope: Dict[str, VariableInfo] = {}
         self.need_predeclaring: Dict[str, VariableInfo] = {}
         self.current_type = ""
+        self.in_call = False
 
     def get_predeclared_vars(self) -> List[Tuple[str, str, str]]:
         """ 
@@ -194,6 +201,52 @@ class VariableAnalyser(ast.NodeVisitor):
         self.vars[node.arg] = VariableInfo(True, typed)
         self.type_by_node[node] = typed
 
+    def visit_Attribute(self, node):
+        """
+        Expressions of the type "a.b". For example, 'a' may be a
+        variable containing a class, or "self", and 'b' may be an
+        attribute.
+
+        Method calls are handled separately, in visit_Call, so
+        here we assume the purpose is to access a variable.
+        (Technically, the purpose is always to access a variable,
+        but Rust treats function definitions separately from
+        variables.)
+        """
+
+        # avoid messing up method calls
+        if self.in_call:
+            return self.generic_visit(node)
+
+        path = get_node_path(node)
+        assert(len(path) > 1)   # otherwise this would just be visit_Name
+        variables = {}
+        first = True
+        for segment in path[:-1]:
+            if segment == "self":
+                variables = self.class_headers[self.current_self].instance_attributes
+            elif first and segment in self.vars:
+                class_type = dereference(self.vars[segment].typed)
+                if class_type in self.class_headers:
+                    variables = self.class_headers[class_type].instance_attributes
+            elif segment in variables:
+                class_type = variables[segment]
+                if class_type in self.class_headers:
+                    variables = self.class_headers[class_type].instance_attributes
+            else:
+                # Could be module names, but we do not yet handle these
+                print("Warning: do not yet handle variable access in other modules", sys.stderr)
+            first = False
+        
+        var_name = path[-1]
+        if var_name in variables:
+            typed = variables[var_name]
+        else:
+            print(f"Warning: unrecognised identifier: {'.'.join(path)}", file=sys.stderr)
+            typed = "unknown"
+        
+        self.set_type(typed, node)
+
     def visit_Name(self, node):
         typed = self.read_access(node.id)
         self.set_type(typed, node)
@@ -230,7 +283,9 @@ class VariableAnalyser(ast.NodeVisitor):
         # a method call on that variable. Ignore for now, apart from setting
         # the type of the variable
         if func_path[0] in self.vars:
+            self.in_call = True
             self.visit(node.func)
+            self.in_call = False
             typed = method_return_type(self.current_type, func_path[1])
             self.set_type(typed, node)
 
@@ -278,13 +333,7 @@ class VariableAnalyser(ast.NodeVisitor):
         self.set_type("&str", node)
 
     def visit_Num(self, node):
-        python_type = type(node.n).__name__
-        if python_type == 'int' or python_type == 'long':
-            self.set_type("i64", node)
-        elif python_type == 'float':
-            self.set_type("f64", node)
-        else:
-            raise Exception(f"Unsupported numeric type: {python_type}")
+        self.set_type(numeric_type(node), node)
 
     def visit_Tuple(self, node):
         types = []
@@ -487,6 +536,13 @@ class VariableAnalyser(ast.NodeVisitor):
             self.vars[container].mutable_ref = True
             self.visit(target)
         
+        # May be an attribute, E.g. foo.a = b or self.a = b. Ensure the
+        # class is mutable reference
+        elif isinstance(target, ast.Attribute):
+            container = target.value.id
+            self.vars[container].mutable_ref = True
+            self.visit(target)
+
         # Anything else, just make sure we visit it
         else:
             self.visit(target)
@@ -498,9 +554,8 @@ class VariableAnalyser(ast.NodeVisitor):
 
     def visit_AugAssign(self, node):
         # x += foo is the same as x = x + foo
-
-        # TODO node.target may be an attribute (e.g. self.foo)
-        typed = self.read_access(node.target.id)
+        self.visit(node.target)
+        typed = self.current_type
         self.set_type(typed, node.target)
         self.visit(node.value)
         self.handle_assignment(node.target, typed)
@@ -523,12 +578,23 @@ class TestFunctionFinder(ast.NodeVisitor):
     Simply used for testing. Invoke VariableAnalyser
     on each function we see
     """
-    def __init__(self, return_types):
-        self.return_types = return_types
+    def __init__(self, headers, class_headers):
+        self.headers = headers
+        self.class_headers = class_headers
+        self.current_self = ""
+
+    def visit_ClassDef(self, node):
+        print(f"Class {node.name}:")
+        print()
+        self.current_self = node.name
+        for line in node.body:
+            self.visit(line)
+        self.current_self = ""
 
     def visit_FunctionDef(self, node):
-        print(f"Function {node.name}:")
-        analyser = VariableAnalyser(self.return_types)
+        title = f"{self.current_self}.method" if self.current_self else "Function"
+        print(f"{title} {node.name}:")
+        analyser = VariableAnalyser(self.headers, self.class_headers, self.current_self)
         analyser.visit(node)
         type_by_node = analyser.get_type_by_node()
 
@@ -556,9 +622,9 @@ def test_analyser(filename):
     sys.stdout = output_file
     tree = ast.parse(source, filename, 'exec')
 
-    function_finder = FunctionHeaderFinder()
-    function_finder.visit(tree)
-    TestFunctionFinder(function_finder.headers).visit(tree)
+    ff = FunctionHeaderFinder()
+    ff.visit(tree)
+    TestFunctionFinder(ff.headers, ff.class_headers).visit(tree)
 
     output_file.close()
     sys.stdout = old_stdout
@@ -582,4 +648,4 @@ if __name__ == "__main__":
     test_analyser("lists")
     test_analyser("sets")
     test_analyser("dictionaries")
-    # test_analyser("classes")
+    test_analyser("classes")
