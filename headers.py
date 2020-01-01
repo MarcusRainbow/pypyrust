@@ -20,6 +20,12 @@ class ClassHeader:
         self.instance_attributes = instance_attributes
         self.methods = methods
 
+    def is_trait(self):
+        """
+        We treat a class as a trait if it has no instance attributes.
+        """
+        return not self.instance_attributes
+
 class InstanceAttributeFinder(ast.NodeVisitor):
     """
     Given an AST representing part of the __init__ method
@@ -71,6 +77,7 @@ class ClassHeaderFinder(ast.NodeVisitor):
 
     def __init__(self):
         self.methods : Dict[str, FunctionHeader] = {}
+        self.instance_attributes : Dict[str, str] = {}
 
     def visit_FunctionDef(self, node):
         name = node.name
@@ -120,7 +127,8 @@ class FunctionHeaderFinder(ast.NodeVisitor):
             method_finder.visit(line)
 
         # Use this to construct the class headers
-        self.class_headers[node.name] = ClassHeader(node.bases, 
+        baseclasses = [base.id for base in node.bases]
+        self.class_headers[node.name] = ClassHeader(baseclasses, 
             method_finder.methods, method_finder.instance_attributes)
 
 def test_headers(filename):
@@ -185,3 +193,4 @@ if __name__ == "__main__":
     test_headers("sets")
     test_headers("dictionaries")
     test_headers("classes")
+    test_headers("traits")

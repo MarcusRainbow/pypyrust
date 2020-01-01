@@ -1,0 +1,68 @@
+Function make_it_waddle:
+    returns None
+    waddler: &Waddle,
+
+Function make_it_quack:
+    returns None
+    quacker: &Quack,
+
+Function tests:
+    returns None
+
+Class Waddle:
+    method: waddle
+        returns None
+        self: None,
+        elegant: bool,
+
+    method: run
+        returns None
+        self: None,
+        speed: i64,
+
+
+Class Quack:
+    method: quack
+        returns None
+        self: None,
+        volume: f64,
+
+    method: echoes
+        returns bool
+        self: None,
+
+
+Class Duck:
+    baseclass: Waddle
+    baseclass: Quack
+    _echoes: bool
+
+    method: __init__
+        returns None
+        self: None,
+        echoes: bool,
+
+    method: waddle
+        returns None
+        self: None,
+        elegant: bool,
+
+    method: run
+        returns None
+        self: None,
+        speed: i64,
+
+    method: quack
+        returns None
+        self: None,
+        volume: f64,
+
+    method: echoes
+        returns bool
+        self: None,
+
+    method: fly
+        returns None
+        self: None,
+
+

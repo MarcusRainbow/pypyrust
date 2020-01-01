@@ -1,0 +1,104 @@
+Class Waddle:
+
+Waddle.method waddle:
+    Expr: type=&str
+    Constant: type=&str
+    Pass: type=&str
+
+Waddle.method run:
+    Expr: type=&str
+    Constant: type=&str
+    Pass: type=&str
+
+Class Quack:
+
+Quack.method quack:
+    Expr: type=&str
+    Constant: type=&str
+    Pass: type=&str
+
+Quack.method echoes:
+    Expr: type=&str
+    Constant: type=&str
+    Pass: type=&str
+
+Class Duck:
+
+Duck.method __init__:
+    Assign: type=<unknown>
+    Attribute: type=bool
+    Name(self): type=<unknown>
+    Store: type=<unknown>
+    Name(echoes): type=bool
+
+Duck.method waddle:
+    If: type=<unknown>
+    Name(elegant): type=bool
+    Expr: type=()
+    Call: type=()
+    Name(print): type=<unknown>
+    Constant: type=&str
+    keyword: type=<unknown>
+    Constant: type=<unknown>
+    Expr: type=()
+    Call: type=()
+    Name(print): type=<unknown>
+    Constant: type=&str
+
+Duck.method run:
+    Expr: type=()
+    Call: type=()
+    Name(print): type=<unknown>
+    Constant: type=&str
+    Name(speed): type=i64
+
+Duck.method quack:
+    Expr: type=()
+    Call: type=()
+    Name(print): type=<unknown>
+    Constant: type=&str
+    Name(volume): type=f64
+
+Duck.method echoes:
+    Return: type=bool
+    Attribute: type=bool
+    Name(self): type=<unknown>
+    Load: type=<unknown>
+
+Duck.method fly:
+    Expr: type=()
+    Call: type=()
+    Name(print): type=<unknown>
+    Constant: type=&str
+
+Function make_it_waddle:
+    Expr: type=Unknown
+    Call: type=Unknown
+    Attribute: type=&Waddle
+    Name(waddler): type=&Waddle
+    Load: type=&Waddle
+    Constant: type=bool
+
+Function make_it_quack:
+    Expr: type=Unknown
+    Call: type=Unknown
+    Attribute: type=&Quack
+    Name(quacker): type=&Quack
+    Load: type=&Quack
+    Constant: type=f64
+
+Function tests:
+    Assign: type=<unknown>
+    Name(donald): type=
+    Call: type=<unknown>
+    Name(Duck): type=<unknown>
+    Constant: type=bool
+    Expr: type=None
+    Call: type=None
+    Name(make_it_waddle): type=<unknown>
+    Name(donald): type=
+    Expr: type=None
+    Call: type=None
+    Name(make_it_quack): type=<unknown>
+    Name(donald): type=
+

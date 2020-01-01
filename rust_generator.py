@@ -77,6 +77,8 @@ class RustGenerator(ast.NodeVisitor):
         self.target = ""
         self.unpacking = False
         self.is_init = False
+        self.in_trait = False
+        self.in_trait_definition = False
 
     def pretty(self):
         return '    ' * self.indent
@@ -194,6 +196,33 @@ class RustGenerator(ast.NodeVisitor):
             print("Warning: unrecognised variable type", file=sys.stderr)
             return True, False, True, False
 
+    def find_trait_implementation(self, line) -> str:
+        """
+        Does the given ast node represent the implementation
+        of a function from some trait? If so, return the name
+        of the trait.
+
+        Neither Python nor Rust support function overloading,
+        so we do not bother checking the signature of the
+        method we find. The Rust compiler will do that.
+        """
+        if not isinstance(line, ast.FunctionDef):
+            return ""
+        if not self.current_self:
+            return ""
+
+        bases = self.class_headers[self.current_self].bases
+        for trait in bases:
+            if trait not in self.class_headers:
+                continue
+            header = self.class_headers[trait]
+            if line.name not in header.methods:
+                continue
+            return trait
+        
+        # method not found
+        return ""
+
     def unpack_lists(self, node) -> List[str]:
         """
         Is this a binary operator that we want to unpack, as its
@@ -233,6 +262,20 @@ class RustGenerator(ast.NodeVisitor):
         classdef = self.class_headers[classname]
         self.current_self = classname
 
+        # special handling for trait definitions
+        if classdef.is_trait():
+            print(f"{self.pretty()}trait {classname} {OPEN_BRACE}")
+            self.add_pretty(1)
+            self.in_trait = self.in_trait_definition = True
+            for line in node.body:
+                self.visit(line)
+            self.in_trait = self.in_trait_definition = False
+            self.add_pretty(-1)
+            print(f"{self.pretty()}{CLOSE_BRACE}")
+            print()
+            return
+
+        # class definition
         print(f"{self.pretty()}pub struct {classname} {OPEN_BRACE}")
         self.add_pretty(1)
 
@@ -250,13 +293,34 @@ class RustGenerator(ast.NodeVisitor):
         print(f"{self.pretty()}impl {classname} {OPEN_BRACE}")
         self.add_pretty(1)
 
-        # TODO if there are base classes, treat them as traits to be implemented
+        # if there are methods that match base classes, treat them as
+        # traits to be implemented. Otherwise write them out now.
+        traits : Dict[str, List[ast.FunctionDef]] = {} 
         for line in node.body:
-            self.visit(line)
+            trait = self.find_trait_implementation(line)
+            if trait:
+                if trait not in traits:
+                    traits[trait] = [line]
+                else:
+                    traits[trait].append(line)
+            else:
+                self.visit(line)
 
         self.add_pretty(-1)
         print(f"{self.pretty()}{CLOSE_BRACE}")
         print()
+
+        # now write out the traits
+        for trait, lines in traits.items():
+            print(f"impl {trait} for {classname} {OPEN_BRACE}")
+            self.add_pretty(1)
+            self.in_trait = True
+            for line in lines:
+                self.visit(line)
+            self.in_trait = False
+            self.add_pretty(-1)
+            print(f"{self.pretty()}{CLOSE_BRACE}")
+            print()
 
         self.current_self = ""
 
@@ -272,7 +336,8 @@ class RustGenerator(ast.NodeVisitor):
         # which we always call "new".
         self.is_init = node.name == "__init__"
         name = "new" if self.is_init else node.name
-        print(f"{self.pretty()}pub fn {name}(", end='')
+        pub = "" if self.in_trait else "pub " 
+        print(f"{self.pretty()}{pub}fn {name}(", end='')
 
         # start with a clean set of variables 
         # (do we need to worry about nested functions?)
@@ -286,13 +351,21 @@ class RustGenerator(ast.NodeVisitor):
 
         # return value
         if self.is_init:
-            print(f") -> {self.current_self} {OPEN_BRACE}")
+            print(f") -> {self.current_self}", end='')
         elif node.returns is not None:
             typed = type_from_annotation(node.returns, "return", True)
-            print(f") -> {typed} {OPEN_BRACE}")
+            print(f") -> {typed}", end='')
         else:
-            print(") {")        
+            print(")", end='')        
 
+        # if all the function does is to pass, and we are in a trait,
+        # just leave as a declaration.
+        if (self.in_trait_definition and len(node.body) == 1 and
+                isinstance(node.body[0], ast.Pass)):
+            print(";")
+            return
+
+        print(" {")
         self.add_pretty(1)
 
         # start with any variable declarations
@@ -322,13 +395,14 @@ class RustGenerator(ast.NodeVisitor):
         self.variables.clear()
 
     def visit_arg(self, node):
-        ref_type = "&mut " if node.arg in self.mutable_ref_vars else ""
         if node.arg == "self":
             if not self.is_init:
+                ref_type = "&mut " if node.arg in self.mutable_ref_vars else "&"
                 print(f"{ref_type}self", end='')
                 self.next_separator = ", "
         else:
             typed = type_from_annotation(node.annotation, node.arg, False)
+            ref_type = "&mut " if node.arg in self.mutable_ref_vars else ""
             if ref_type:
                 typed = dereference(typed)
             mutable = "mut " if node.arg in self.mutable_vars else ""
@@ -1149,3 +1223,4 @@ if __name__ == "__main__":
     test_compiler("sets")
     test_compiler("dictionaries")
     test_compiler("classes")
+    test_compiler("traits")

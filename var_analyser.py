@@ -649,3 +649,4 @@ if __name__ == "__main__":
     test_analyser("sets")
     test_analyser("dictionaries")
     test_analyser("classes")
+    test_analyser("traits")
