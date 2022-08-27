@@ -55,10 +55,8 @@ def compile_file_to_rust(filename: str) -> bool:
     assert(ok)
 
 if __name__ == "__main__":
-    # if len(sys.argv) != 2:
-    #     print(f"usage: {sys.argv[0]} <file_to_compile>", file=sys.stderr)
-    #     exit(1)
+    if len(sys.argv) != 2:
+        print(f"usage: {sys.argv[0]} <file_to_compile>", file=sys.stderr)
+        exit(1)
 
-    # compile_file_to_rust(sys.argv[1])
-
-    compile_file_to_rust("../pdl-sandbox/src/ImpliedVolHints.py")
+    compile_file_to_rust(sys.argv[1])
