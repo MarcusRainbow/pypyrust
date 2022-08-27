@@ -36,6 +36,17 @@ def get_node_path(node) -> List[str]:
     else:
         raise Exception("Cannot find path to node")
 
+def function_return(functype: str) -> str:
+    """
+    Finds the return type of a function.
+    E.g. given "&Fn(i32) -> f64" it returns "f64"
+    """
+    arrow = functype.find(" -> ")
+    if arrow >= 0:
+        return functype[arrow + 4:]
+    else:
+        return functype
+
 IMPORTED_MODULES = {}
 def load_and_import_module(name: str) -> object:
     if name in IMPORTED_MODULES:
@@ -235,7 +246,7 @@ class VariableAnalyser(ast.NodeVisitor):
                     variables = self.class_headers[class_type].instance_attributes
             else:
                 # Could be module names, but we do not yet handle these
-                print("Warning: do not yet handle variable access in other modules", sys.stderr)
+                print("Warning: do not yet handle variable access in other modules", file=sys.stderr)
             first = False
         
         var_name = path[-1]
@@ -273,11 +284,17 @@ class VariableAnalyser(ast.NodeVisitor):
 
         # Assume function names with no module are defined locally
         if len(func_path) == 1:
-            if func_path[0] not in self.headers:
+            if func_path[0] in self.vars:
+                self.set_type(function_return(self.vars[func_path[0]].typed), node)
+            elif func_path[0] in self.headers and len(func_path) == 1:
+                self.set_type(self.headers[func_path[0]].returns, node)
+            else:
                 print(f"Warning: cannot find function return for: {func_path[0]}",
                     file = sys.stderr)
-            else:
-                self.set_type(self.headers[func_path[0]].returns, node)
+
+        # We currently only handle module.func_name
+        if len(func_path) != 2:
+            return
 
         # If the first part of the path is a known variable, then this is
         # a method call on that variable. Ignore for now, apart from setting
@@ -294,10 +311,6 @@ class VariableAnalyser(ast.NodeVisitor):
             self.vars[func_path[0]].mutable_ref = True
             return
 
-        # We currently only handle module.func_name
-        if len(func_path) != 2:
-            return
-
         # Locate the function. In order to do this, we actually load
         # the module of interest into our own process space. Maybe
         # consider making this optional, as it is a bit of a
@@ -312,6 +325,13 @@ class VariableAnalyser(ast.NodeVisitor):
         if "return" in types:
             typed = type_from_annotation(types["return"],func_name, True)
             self.set_type(typed, node)
+
+    def visit_Raise(self, node):
+        """
+        Ignore any types within a raise command. In practice, we just raise strings
+        """
+        # self.generic_visit(node)
+        pass
 
     def visit_Return(self, node):
         """

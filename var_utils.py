@@ -150,6 +150,10 @@ def type_from_annotation(annotation, arg: str, container: bool) -> str:
         id = annotation.__name__
     elif isinstance(annotation, ast.Subscript):
         return type_from_subscript(annotation, arg, container)
+    elif isinstance(annotation, ast.List):
+        return type_from_list(annotation.elts, arg, container)
+    elif isinstance(annotation, ast.Constant) and annotation.value is None:
+        return "()"
     else:
         print(f"unexpected type of annotation for argument '{arg}'", file=sys.stderr)
         return 'None'
@@ -162,6 +166,15 @@ def type_from_annotation(annotation, arg: str, container: bool) -> str:
         # container type is required, return the type itself. Otherwise
         # a reference.
         return id if container else f"&{id}"
+
+def type_from_list(names: List[ast.Name], arg: str, container: bool) -> str:
+    result = ""
+    sep = ""
+    for n in names:
+        result += sep
+        result += type_from_annotation(n, arg, container)
+        sep = ", "
+    return result
 
 def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) -> str:
     """
@@ -176,6 +189,8 @@ def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) ->
         start, end = "HashSet<", ">"
     elif outer_type == "Dict":
         start, end = "HashMap<", ">"
+    elif outer_type == "Callable":
+        return type_from_function_call(annotation, arg)
     else:
         start, end = "<unknown>", "</unknown>"
 
@@ -195,6 +210,16 @@ def type_from_subscript(annotation: ast.Subscript, arg: str, container: bool) ->
     
     result = f"{start}{types}{end}"
     return container_type(result) if container else result
+
+def type_from_function_call(annotation: ast.Subscript, arg: str) -> str:
+    type_def = annotation.slice.value
+    if isinstance(type_def, ast.Tuple):
+        type_str = [type_from_annotation(e, arg, False)
+            for e in type_def.elts]
+        if len(type_str) == 2:
+            return f"&Fn({type_str[0]}) -> {type_str[1]}"
+
+    return "Fn() -> Unknown"
 
 def merge_types(current_type: str, typed: str) -> str:
     if not typed:

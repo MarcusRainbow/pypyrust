@@ -394,6 +394,19 @@ class RustGenerator(ast.NodeVisitor):
         # clean the set of variables. The names do not leak past here
         self.variables.clear()
 
+    def visit_Lambda(self, node):
+        print("&|", end='')
+        # don't visit the arg using the standard visitor, as it will whinge
+        # about the lack of a type
+        sep = ""
+        for arg in node.args.args:
+            print(f"{sep}{arg.arg}", end='')
+            self.variables.add(arg.arg)
+            sep = ", "
+
+        print("| ", end='')
+        self.visit(node.body)
+
     def visit_arg(self, node):
         if node.arg == "self":
             if not self.is_init:
@@ -415,6 +428,11 @@ class RustGenerator(ast.NodeVisitor):
         self.generic_visit(node)
         print(";")
 
+    def visit_Raise(self, node):
+        print(f"{self.pretty()}panic!(", end='')
+        self.visit(node.exc.args[0])
+        print(");")
+
     def visit_Return(self, node):
         print(f"{self.pretty()}return ", end='')
         self.visit_and_optionally_convert(node.value)
@@ -422,8 +440,13 @@ class RustGenerator(ast.NodeVisitor):
 
     def visit_Call(self, node):
         node_path = get_node_path(node.func)
+        # look for standard calls like len, abs etc
         if node_path and len(node_path) == 1 and node_path[0] in STANDARD_FUNCTIONS:
             return STANDARD_FUNCTIONS[node_path[0]](self, node)
+
+        # also treat standard calls in Math. the same, like exp and log
+        if node_path and len(node_path) == 2 and node_path[1] in STANDARD_FUNCTIONS:
+            return STANDARD_FUNCTIONS[node_path[1]](self, node)
 
         # identify method calls, where the first item is a known variable
         is_method = len(node_path) > 1 and node_path[0] in self.variables
@@ -897,9 +920,15 @@ class RustGenerator(ast.NodeVisitor):
         print(" }", end='')
 
     def visit_If(self, node):
-        print(f"{self.pretty()}if ", end='')
-        self.precedence = 0     # don't need params around if condition
-        self.visit(node.test)
+        # Special case when the code is: if __name__ == "__main__":
+        if self.indent == 0 and isinstance(node.test, ast.Compare) and node.test.left.id == "__name__" and node.test.comparators[0].value == "__main__":
+            print("pub fn main()", end='')
+        else:
+            # otherwise, write out the if statement
+            print(f"{self.pretty()}if ", end='')
+            self.precedence = 0     # don't need params around if condition
+            self.visit(node.test)
+
         print(" {")
         self.add_pretty(1)
         for line in node.body:

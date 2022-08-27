@@ -119,14 +119,24 @@ STANDARD_FUNCTION_RETURNS = {
     "range": lambda args: f"[{args[0]}]",
     "zip":   lambda args: f"[({', '.join([ strip_container(x) for x in args ])})]",
     "len":   lambda args: "i64",
+    "abs":   lambda args: args[0],
+    "exp":   lambda args: "f64",
+    "log":   lambda args: "f64",
+    "min":   lambda args: args[0],    
+    "max":   lambda args: args[0],    
 }
 
 STANDARD_FUNCTIONS = {
+    "abs":   lambda visitor, node: handle_postfix(visitor, node, "abs"),
     "dict":  lambda visitor, node: handle_dict(visitor, node),
-    "len":   lambda visitor, node: handle_len(visitor, node),
+    "len":   lambda visitor, node: handle_postfix(visitor, node, "len"),
     "print": lambda visitor, node: handle_print(visitor, node),
     "range": lambda visitor, node: handle_range(visitor, node),
     "zip":   lambda visitor, node: handle_zip(visitor, node),
+    "exp":   lambda visitor, node: handle_postfix(visitor, node, "exp"),
+    "log":   lambda visitor, node: handle_postfix(visitor, node, "abs"),
+    "min":   lambda visitor, node: handle_minmax(visitor, node, "min"),
+    "max":   lambda visitor, node: handle_minmax(visitor, node, "max"),
 }
 
 def method_return_type(class_type: str, method_name: str) -> str:
@@ -420,13 +430,25 @@ def handle_range(visitor, node):
         visitor.visit(node.args[1])
         if want_paren: print(")", end='')
     elif n == 3:
-        print("(")
-        visitor.visit(node.args[0])
-        print("..", end='')
-        visitor.visit(node.args[1])
-        print(").step_by(")
-        visitor.visit(node.args[2])
-        print(")")
+        if isConst(node.args[0]) and isConst(node.args[1]) and isConst(node.args[2]):
+            fr = node.args[0].value
+            to = node.args[1].value
+            step = node.args[2].value
+            if step == 1:
+                print(f"{fr}..{to}", end='')
+            else:
+                print(f"({fr}..{to}).step({step})", end='')
+        else:
+            print("(", end='')
+            visitor.visit(node.args[0])
+            print("..", end='')
+            visitor.visit(node.args[1])
+            print(").step_by(", end='')
+            visitor.visit(node.args[2])
+            print(")", end='')
+
+def isConst(obj):
+    return isinstance(obj, ast.Constant)
 
 def handle_zip(visitor, node):
     """
@@ -448,10 +470,24 @@ def handle_zip(visitor, node):
     visitor.visit(node.args[1])
     print(".iter().cloned())", end='')
 
-def handle_len(visitor, node):
+def handle_postfix(visitor, node, operator):
     """
-    In Python, len(foo) returns the number of items in foo. The
-    equivalent in Rust is foo.len()
+    In Python, abs(foo) returns the absolute value of foo. The
+    equivalent in Rust is foo.abs(). Same with exp and log
     """
+    # TODO could be clever with the parentheses here, and only output if needed
+    print("(", end='')
     visitor.visit(node.args[0])
-    print(".len()", end='')
+    print(f").{operator}()", end='')
+
+def handle_minmax(visitor, node, operator):
+    """
+    In Python, min(foo, bar) returns the smaller of foo and bar. The
+    equivalent in Rust is foo.min(bar). Same with max
+    """
+    # TODO could be clever with the parentheses here, and only output if needed
+    print("(", end='')
+    visitor.visit(node.args[0])
+    print(f").{operator}(", end='')
+    visitor.visit(node.args[1])
+    print(")", end='')
