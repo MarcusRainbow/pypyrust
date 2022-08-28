@@ -21,8 +21,9 @@ REPLACE_CONSTANTS = {
 # "not", which is very highest precedence in Rust, but just above the
 # other boolean operators in Rust.
 OPERATOR_PRECEDENCE = {
-    "Pow": 12,
-    "UAdd": 11, "USub": 11, "Invert": 11, "Not": 11,
+    "Pow": 13,
+    "UAdd": 12, "USub": 12, "Invert": 12, "Not": 12,
+    "as": 11,  # does not exist in Python, but we may need it in Rust
     "Mult": 10, "Div": 10, "FloorDiv": 10, "Mod": 10,
     "Add": 9, "Sub": 9,
     "LShift": 8, "RShift": 8,
@@ -35,7 +36,7 @@ OPERATOR_PRECEDENCE = {
     "Or": 1,
 }
 # One bigger than any actual precedence. Use this to force parentheses
-MAX_PRECEDENCE = 13
+MAX_PRECEDENCE = 14
 
 STANDARD_METHOD_RETURNS = {
     ("HashMap<_>", "keys"):    lambda types: f"[{types[0]}]",
@@ -134,7 +135,7 @@ STANDARD_FUNCTIONS = {
     "range": lambda visitor, node: handle_range(visitor, node),
     "zip":   lambda visitor, node: handle_zip(visitor, node),
     "exp":   lambda visitor, node: handle_postfix(visitor, node, "exp"),
-    "log":   lambda visitor, node: handle_postfix(visitor, node, "abs"),
+    "log":   lambda visitor, node: handle_postfix(visitor, node, "ln"),
     "min":   lambda visitor, node: handle_minmax(visitor, node, "min"),
     "max":   lambda visitor, node: handle_minmax(visitor, node, "max"),
 }

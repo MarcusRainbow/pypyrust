@@ -407,6 +407,9 @@ class RustGenerator(ast.NodeVisitor):
         print("| ", end='')
         self.visit(node.body)
 
+        for arg in node.args.args:
+            self.variables.remove(arg.arg)
+
     def visit_arg(self, node):
         if node.arg == "self":
             if not self.is_init:
@@ -669,10 +672,26 @@ class RustGenerator(ast.NodeVisitor):
             self.unpacking = False
     
     def do_visit_BinOp(self, node):
-        self.visit(node.left)
+        # We may need some type coercion, as Rust gets upset by mixed-mode arithmetic
+        left = self.type_by_node[node.left]
+        right = self.type_by_node[node.right]
+        this_type = self.type_by_node[node]
+
+        if left != this_type:
+            self.parens_if_needed("as", lambda: self.visit(node.left))
+            print(f" as {this_type}", end='')
+        else:
+            self.visit(node.left)
+        
         self.visit(node.op)
         self.precedence += 1    # left to right associative
-        self.visit(node.right)
+
+        if right != this_type:
+            self.parens_if_needed("as", lambda: self.visit(node.right))
+            print(f" as {this_type}", end='')
+        else:
+            self.visit(node.right)
+
         self.precedence -= 1
 
     def visit_PowOp(self, node):
@@ -724,15 +743,15 @@ class RustGenerator(ast.NodeVisitor):
         self.print_operator("-")
     
     def visit_Div(self, node):
-        # print("warning: floating point division", file=sys.stderr)
+        # note that div applied to integers is coerced to float
         self.print_operator("/")
 
     def visit_FloorDiv(self, node):
-        # print("warning: integer division", file=sys.stderr)
+        print("warning: Python floor div operator is different from Rust", file=sys.stderr)
         self.print_operator("/")
 
     def visit_Mod(self, node):
-        # print("warning: Python mod operator is different from Rust")
+        print("warning: Python mod operator is different from Rust", file=sys.stderr)
         self.print_operator("%")
 
     # def visit_Pow(self, node):
@@ -1180,6 +1199,10 @@ class RustGenerator(ast.NodeVisitor):
         mutable, declared, _, _ = self.sex_variable(node.target)
         if declared:
             print(f"{self.pretty()}", end='')
+
+        # special handling for immutable undeclared variables at global scope
+        elif self.indent == 0 and not mutable:
+            print("const ", end='')
         else:
             mut = "mut " if mutable else ""
             print(f"{self.pretty()}let {mut}", end='')

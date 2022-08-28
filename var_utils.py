@@ -217,7 +217,7 @@ def type_from_function_call(annotation: ast.Subscript, arg: str) -> str:
         type_str = [type_from_annotation(e, arg, False)
             for e in type_def.elts]
         if len(type_str) == 2:
-            return f"&Fn({type_str[0]}) -> {type_str[1]}"
+            return f"&dyn Fn({type_str[0]}) -> {type_str[1]}"
 
     return "Fn() -> Unknown"
 

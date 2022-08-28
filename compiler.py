@@ -60,3 +60,5 @@ if __name__ == "__main__":
         exit(1)
 
     compile_file_to_rust(sys.argv[1])
+
+    # compile_file_to_rust("../pdl-sandbox/src/ImpliedVolHints.py")

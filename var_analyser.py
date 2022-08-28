@@ -131,12 +131,12 @@ class VariableAnalyser(ast.NodeVisitor):
 
         Returns the type of the variable
         """
-        if var in self.vars:
-            return self.vars[var].typed
-        elif var in self.out_of_scope:
+        if var in self.out_of_scope:
             info = self.out_of_scope[var]
             self.need_predeclaring[var] = info
             return info.typed
+        elif var in self.vars:
+            return self.vars[var].typed
 
         # The else case here picks up all sorts of things we do not
         # naturally thing of as variables, such as the names of
@@ -148,6 +148,8 @@ class VariableAnalyser(ast.NodeVisitor):
             if typed == UNKNOWN_TYPE:
                 raise Exception("Cannot declare variable of mixed type")
             self.vars[var] = VariableInfo(False, typed)
+        elif var in self.out_of_scope:
+            self.need_predeclaring[var] = self.out_of_scope[var]
         else:
             # A second write to a variable means it must be mutable.
             # Ignore the type in this case, as the Rust compiler will
@@ -162,14 +164,14 @@ class VariableAnalyser(ast.NodeVisitor):
         # throw away any new variables from this scope,
         # but remember about them, as Python would allow
         # them to be used later on.
-        to_delete = []
+        # to_delete = []
         for key, value in self.vars.items():
             if key not in prev:
                 self.out_of_scope[key] = value
-                to_delete.append(key)
+                # to_delete.append(key)
         
-        for key in to_delete:
-            del self.vars[key]
+        # for key in to_delete:
+        #     del self.vars[key]
     
     def set_type(self, typed: str, node):
         """
@@ -419,7 +421,13 @@ class VariableAnalyser(ast.NodeVisitor):
         left = self.current_type
         self.visit(node.op)
         self.visit(node.right)
-        self.merge_type(left, node)
+
+        # special handling for integer / integer division. Python always returns float
+        if isinstance(node.op, ast.Div) and self.current_type == "i64" and left == "i64":
+            self.set_type("f64", node)
+        else:
+            self.merge_type(left, node)
+
         self.set_type_container(node)
 
     def visit_UnaryOp(self, node):
